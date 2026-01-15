@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 export default function CreateQuestion({ params }: { params: { id: string } }) {
   async function create(formData: FormData) {
     'use server';
-    const supabase = createClient();
+    const supabase = await createClient();
     const question = formData.get('question') as string;
     const type = formData.get('type') as string;
     const score = Number(formData.get('score'));
@@ -42,7 +42,7 @@ export default function CreateQuestion({ params }: { params: { id: string } }) {
   return (
     <form action={create} className="space-y-4 p-6 bg-white dark:bg-gray-800 rounded-lg">
       <h1 className="text-2xl font-bold text-orange-500">Tạo câu hỏi mới</h1>
-      
+
       <select name="type" className="w-full p-2 border rounded">
         <option value="multiple-choice">Trắc nghiệm</option>
         <option value="essay">Tự luận</option>

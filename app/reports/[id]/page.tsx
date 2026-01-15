@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase/client'
 
 type QuestionType = 'single' | 'multiple' | 'essay'
 
@@ -154,40 +154,40 @@ export default function ReportDetailPage() {
 
   return (
     <div className="p-6 bg-white text-gray-900">
-  {/* Header */}
-  <div className="flex items-start justify-between gap-4">
-    <div>
-      <h1 className="text-2xl font-bold text-[var(--primary)]">Chi tiết bài làm</h1>
-
-      <div className="mt-2 text-sm text-gray-600 space-y-1">
-        {/* ✅ THÊM DÒNG NÀY */}
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
         <div>
-          Thí sinh:{' '}
-          <span className="font-semibold text-gray-900">
-            {submission.candidate_name?.trim() || '(Chưa có tên)'}
-          </span>
-        </div>
+          <h1 className="text-2xl font-bold text-[var(--primary)]">Chi tiết bài làm</h1>
 
-        <div>
-          Kết quả:{' '}
-          <span className={`font-semibold ${submission.passed ? 'text-green-700' : 'text-red-700'}`}>
-            {submission.passed ? 'ĐẠT' : 'CHƯA ĐẠT'}
-          </span>
-        </div>
+          <div className="mt-2 text-sm text-gray-600 space-y-1">
+            {/* ✅ THÊM DÒNG NÀY */}
+            <div>
+              Thí sinh:{' '}
+              <span className="font-semibold text-gray-900">
+                {submission.candidate_name?.trim() || '(Chưa có tên)'}
+              </span>
+            </div>
 
-        <div>
-          Điểm:{' '}
-          <span className="font-semibold">
-            {submission.score_percent}%
-          </span>{' '}
-          ({submission.correct_count}/{submission.total_count})
-        </div>
+            <div>
+              Kết quả:{' '}
+              <span className={`font-semibold ${submission.passed ? 'text-green-700' : 'text-red-700'}`}>
+                {submission.passed ? 'ĐẠT' : 'CHƯA ĐẠT'}
+              </span>
+            </div>
 
-        <div>
-          Thời gian làm: {formatDuration(submission.duration_seconds)}
+            <div>
+              Điểm:{' '}
+              <span className="font-semibold">
+                {submission.score_percent}%
+              </span>{' '}
+              ({submission.correct_count}/{submission.total_count})
+            </div>
+
+            <div>
+              Thời gian làm: {formatDuration(submission.duration_seconds)}
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
 
 
         <button
@@ -216,11 +216,10 @@ export default function ReportDetailPage() {
 
                 {!isEssay && (
                   <span
-                    className={`text-xs px-2.5 py-1 rounded-full border ${
-                      sa?.is_correct
-                        ? 'border-green-300 bg-green-50 text-green-700'
-                        : 'border-red-300 bg-red-50 text-red-700'
-                    }`}
+                    className={`text-xs px-2.5 py-1 rounded-full border ${sa?.is_correct
+                      ? 'border-green-300 bg-green-50 text-green-700'
+                      : 'border-red-300 bg-red-50 text-red-700'
+                      }`}
                   >
                     {sa?.is_correct ? 'Đúng' : 'Sai'}
                   </span>
@@ -247,8 +246,8 @@ export default function ReportDetailPage() {
                     const cls = isCorrect
                       ? 'border-green-300 bg-green-50'
                       : isSelected
-                      ? 'border-red-300 bg-red-50'
-                      : 'border-gray-200 bg-white'
+                        ? 'border-red-300 bg-red-50'
+                        : 'border-gray-200 bg-white'
 
                     return (
                       <div key={a.id} className={`rounded-lg border p-3 flex items-center justify-between ${cls}`}>
@@ -263,9 +262,8 @@ export default function ReportDetailPage() {
 
                           {isSelected && (
                             <span
-                              className={`text-xs px-2 py-1 rounded-full border bg-white ${
-                                isCorrect ? 'border-green-300 text-green-700' : 'border-red-300 text-red-700'
-                              }`}
+                              className={`text-xs px-2 py-1 rounded-full border bg-white ${isCorrect ? 'border-green-300 text-green-700' : 'border-red-300 text-red-700'
+                                }`}
                             >
                               Bạn chọn
                             </span>
@@ -290,7 +288,7 @@ export default function ReportDetailPage() {
                   </div>
 
                   <div className="text-xs text-gray-500">
-                    Trạng thái chấm: {sa?.is_correct === null ? 'Chưa chấm' : sa.is_correct ? 'Đúng' : 'Sai'}
+                    Trạng thái chấm: {sa?.is_correct === true ? 'Đúng' : sa?.is_correct === false ? 'Sai' : 'Chưa chấm'}
                   </div>
                 </div>
               )}

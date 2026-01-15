@@ -4,8 +4,8 @@ import { redirect } from 'next/navigation';
 import { notFound } from 'next/navigation';
 
 export default async function EditQuestion({ params }: { params: { id: string; qid: string } }) {
-  const supabase = createClient();
-  
+  const supabase = await createClient();
+
   const { data: question } = await supabase
     .from('questions')
     .select('*')
@@ -17,8 +17,8 @@ export default async function EditQuestion({ params }: { params: { id: string; q
 
   async function update(formData: FormData) {
     'use server';
-    const supabase = createClient();
-    
+    const supabase = await createClient();
+
     const content = formData.get('content') as string;
     const type = formData.get('type') as string;
     const score = Number(formData.get('score'));
@@ -59,7 +59,7 @@ export default async function EditQuestion({ params }: { params: { id: string; q
   return (
     <form action={update} className="space-y-4 p-6 bg-white dark:bg-gray-800 rounded-lg">
       <h1 className="text-2xl font-bold text-orange-500">Sửa câu hỏi</h1>
-      
+
       <select name="type" defaultValue={question.type} className="w-full p-2 border rounded">
         <option value="multiple-choice">Trắc nghiệm</option>
         <option value="essay">Tự luận</option>
@@ -74,7 +74,7 @@ export default async function EditQuestion({ params }: { params: { id: string; q
         <input name="option2" defaultValue={question.options?.[1] || ''} placeholder="Đáp án B" className="w-full p-2 border rounded" />
         <input name="option3" defaultValue={question.options?.[2] || ''} placeholder="Đáp án C" className="w-full p-2 border rounded" />
         <input name="option4" defaultValue={question.options?.[3] || ''} placeholder="Đáp án D" className="w-full p-2 border rounded" />
-        
+
         <select name="correct" defaultValue={question.correct_answer} className="w-full p-2 border rounded">
           <option value="">Chọn đáp án đúng</option>
           <option value="0">A</option>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase/client'
 
 
 type SubmissionRow = {
@@ -136,11 +136,10 @@ export default function ReportsPage() {
 
                   <td className="p-4 text-center whitespace-nowrap">
                     <span
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs border ${
-                        r.passed
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs border ${r.passed
                           ? 'border-green-300 bg-green-50 text-green-700'
                           : 'border-red-300 bg-red-50 text-red-700'
-                      }`}
+                        }`}
                     >
                       {r.passed ? 'ĐẠT' : 'CHƯA ĐẠT'}
                     </span>
