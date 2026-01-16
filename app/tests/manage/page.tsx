@@ -78,7 +78,7 @@ export default function ManageTests() {
     try {
       await navigator.clipboard.writeText(text)
       alert('✅ Đã copy')
-    } catch {}
+    } catch { }
   }
 
   if (loading) return <div className="text-gray-600">Đang tải...</div>
@@ -158,7 +158,7 @@ export default function ManageTests() {
                   <div className="flex gap-2 justify-center flex-wrap">
                     {/* Câu hỏi — xanh */}
                     <Link
-                      href={`/tests/manage/${test.id}/questions`}
+                      href={`/tests/manage/${test.id}?tab=questions`}
                       className="px-3 py-1.5 rounded-md bg-[var(--secondary)] text-white hover:opacity-90"
                     >
                       Câu hỏi
@@ -166,7 +166,7 @@ export default function ManageTests() {
 
                     {/* Sửa — cam */}
                     <Link
-                      href={`/tests/manage/${test.id}/edit`}
+                      href={`/tests/manage/${test.id}?tab=info`}
                       className="px-3 py-1.5 rounded-md bg-[var(--primary)] text-white hover:opacity-90"
                     >
                       Sửa

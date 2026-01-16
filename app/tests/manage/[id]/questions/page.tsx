@@ -456,8 +456,48 @@ export default function ManageTestQuestionsPage() {
                                 </button>
                               </div>
                             )}
+
+                            {/* DELETE ANSWER BUTTON */}
+                            {q.options.length > 1 && (
+                              <div className="pl-8">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const copy = [...questions]
+                                    copy[qi].options.splice(oi, 1)
+                                    // Re-index IDs
+                                    copy[qi].options.forEach((opt, idx) => {
+                                      opt.id = String.fromCharCode(65 + idx)
+                                    })
+                                    setQuestions(copy)
+                                  }}
+                                  className="text-sm text-red-500 hover:text-red-700 underline"
+                                >
+                                  Xoá đáp án này
+                                </button>
+                              </div>
+                            )}
                           </div>
                         ))}
+
+                        {/* ADD ANSWER BUTTON */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const copy = [...questions]
+                            const nextChar = String.fromCharCode(65 + copy[qi].options.length)
+                            copy[qi].options.push({
+                              id: nextChar,
+                              text: '',
+                              isCorrect: false,
+                              image_url: null
+                            })
+                            setQuestions(copy)
+                          }}
+                          className="text-sm font-medium text-[#ff5200] hover:underline"
+                        >
+                          + Thêm đáp án
+                        </button>
                       </div>
                     )}
                   </div>

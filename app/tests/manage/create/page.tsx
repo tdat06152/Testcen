@@ -90,26 +90,26 @@ export default function CreateTestPage() {
       const q = questions[i]
 
       // xác định đáp án đúng (để thỏa NOT NULL correct_answer)
-const correctAnswer =
-  q.type === 'essay'
-    ? '' // tự luận không có đáp án
-    : (q.options.find(o => o.isCorrect)?.id ?? '')
+      const correctAnswer =
+        q.type === 'essay'
+          ? '' // tự luận không có đáp án
+          : (q.options.find(o => o.isCorrect)?.id ?? '')
 
-const { data: question, error: qError } = await supabase
-  .from('questions')
-  .insert({
-    test_id: test.id,
-    content: q.content,
-    type: q.type,
+      const { data: question, error: qError } = await supabase
+        .from('questions')
+        .insert({
+          test_id: test.id,
+          content: q.content,
+          type: q.type,
 
-    // 👇 BẮT BUỘC vì DB đang NOT NULL
-    correct_answer: correctAnswer,
+          // 👇 BẮT BUỘC vì DB đang NOT NULL
+          correct_answer: correctAnswer,
 
-    // 👇 nếu DB còn cột options NOT NULL
-    options: q.type === 'essay' ? [] : q.options.map(o => o.id),
-  })
-  .select()
-  .single()
+          // 👇 nếu DB còn cột options NOT NULL
+          options: q.type === 'essay' ? [] : q.options.map(o => o.id),
+        })
+        .select()
+        .single()
 
 
 
@@ -149,22 +149,20 @@ const { data: question, error: qError } = await supabase
         <div className="flex gap-8 border-b border-gray-200">
           <button
             onClick={() => setActiveSection('info')}
-            className={`pb-3 font-semibold ${
-              activeSection === 'info'
-                ? 'border-b-2 border-[#ff5200] text-[#ff5200]'
-                : 'text-gray-500'
-            }`}
+            className={`pb-3 font-semibold ${activeSection === 'info'
+              ? 'border-b-2 border-[#ff5200] text-[#ff5200]'
+              : 'text-gray-500'
+              }`}
           >
             Thông tin cơ bản
           </button>
 
           <button
             onClick={() => setActiveSection('questions')}
-            className={`pb-3 font-semibold ${
-              activeSection === 'questions'
-                ? 'border-b-2 border-[#ff5200] text-[#ff5200]'
-                : 'text-gray-500'
-            }`}
+            className={`pb-3 font-semibold ${activeSection === 'questions'
+              ? 'border-b-2 border-[#ff5200] text-[#ff5200]'
+              : 'text-gray-500'
+              }`}
           >
             Câu hỏi ({questions.length})
           </button>
@@ -330,6 +328,18 @@ const { data: question, error: qError } = await supabase
                     <option value="multiple">Nhiều đáp án</option>
                     <option value="essay">Tự luận</option>
                   </select>
+
+                  <button
+                    onClick={() => {
+                      const copy = [...questions]
+                      copy.splice(qi, 1)
+                      setQuestions(copy)
+                    }}
+                    className="ml-3 text-red-500 hover:text-red-700 font-medium"
+                    title="Xóa câu hỏi này"
+                  >
+                    Xóa
+                  </button>
                 </div>
 
                 <div className="p-6 space-y-6">
@@ -372,14 +382,19 @@ const { data: question, error: qError } = await supabase
                             className="flex-1 h-10 px-3 border border-gray-300 rounded-lg bg-white text-gray-900"
                           />
 
-                          {q.options.length > 2 && (
+                          {q.options.length > 1 && (
                             <button
+                              type="button"
                               onClick={() => {
                                 const copy = [...questions]
                                 copy[qi].options.splice(oi, 1)
+                                // Re-index IDs
+                                copy[qi].options.forEach((opt, idx) => {
+                                  opt.id = String.fromCharCode(65 + idx)
+                                })
                                 setQuestions(copy)
                               }}
-                              className="text-red-500 text-sm"
+                              className="text-red-500 text-sm font-medium hover:text-red-700 hover:underline"
                             >
                               Xóa
                             </button>
