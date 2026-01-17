@@ -46,6 +46,7 @@ export default function TakeTestPage() {
   // ✅ NEW: tên + trạng thái đã bấm bắt đầu chưa
   const [candidateName, setCandidateName] = useState('')
   const [started, setStarted] = useState(false)
+  const [violationCount, setViolationCount] = useState(0)
 
   const [qLoading, setQLoading] = useState(false)
   const [questions, setQuestions] = useState<Question[]>([])
@@ -407,6 +408,35 @@ export default function TakeTestPage() {
     setSubmitting(false)
   }
 
+  // ✅ Anti-cheat: Fullscreen + Tab switch detection
+  useEffect(() => {
+    if (!started || submission) return
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        setViolationCount(prev => prev + 1)
+      } else if (document.visibilityState === 'visible') {
+        // Hiện cảnh báo khi quay lại tab
+        alert('⚠️ CẢNH BÁO: Hệ thống phát hiện bạn đã chuyển tab hoặc rời khỏi màn hình! Vi phạm này đã bị ghi lại.')
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [started, submission])
+
+  const enterFullScreen = () => {
+    try {
+      const el = document.documentElement as any
+      const requestMethod = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen
+      if (requestMethod) {
+        requestMethod.call(el)
+      }
+    } catch (e) {
+      console.error('Fullscreen error:', e)
+    }
+  }
+
   const message = useMemo(() => {
     if (!submission) return ''
     return submission.passed
@@ -539,6 +569,7 @@ export default function TakeTestPage() {
                   localStorage.setItem(startKey, new Date().toISOString())
                 }
 
+                enterFullScreen()
                 setStarted(true)
               }}
               className="w-full px-5 py-3 rounded-lg bg-[#00a0fa] text-white font-semibold"
