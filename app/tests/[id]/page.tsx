@@ -46,7 +46,10 @@ export default function TakeTestPage() {
   // ✅ NEW: tên + trạng thái đã bấm bắt đầu chưa
   const [candidateName, setCandidateName] = useState('')
   const [started, setStarted] = useState(false)
+
+  // Anti-cheat state
   const [violationCount, setViolationCount] = useState(0)
+  const [violationReason, setViolationReason] = useState<string | null>(null)
 
   const [qLoading, setQLoading] = useState(false)
   const [questions, setQuestions] = useState<Question[]>([])
@@ -76,6 +79,8 @@ export default function TakeTestPage() {
     // NEW reset name/start
     setCandidateName('')
     setStarted(false)
+    setViolationCount(0)
+    setViolationReason(null)
   }
 
   // Load test + get stored access code id
@@ -134,6 +139,22 @@ export default function TakeTestPage() {
     if (test?.status !== 'published') return
 
     const check = async () => {
+      // ✅ Security Check: Verify code belongs to this test
+      const { data: codeRow, error: codeErr } = await supabase
+        .from('test_access_codes')
+        .select('test_id')
+        .eq('id', accessCodeId)
+        .single()
+
+      if (codeErr || !codeRow || codeRow.test_id !== testId) {
+        // Mã không khớp bài test này (có thể do lỗi local storage hoặc hack)
+        // Reset ngay
+        console.warn('Invalid access code for this test, resetting...')
+        resetForNewCode()
+        return
+      }
+
+      // Check submission
       const { data, error } = await supabase
         .from('test_submissions')
         .select('score_percent, correct_count, total_count, passed, created_at')
@@ -360,6 +381,7 @@ export default function TakeTestPage() {
         started_at: startedAt ? startedAt.toISOString() : null,
         submitted_at: submittedAt.toISOString(),
         duration_seconds: durationSeconds,
+        violation_count: violationCount,
       })
       .select('id, score_percent, correct_count, total_count, passed, created_at')
       .single()
@@ -408,21 +430,80 @@ export default function TakeTestPage() {
     setSubmitting(false)
   }
 
-  // ✅ Anti-cheat: Fullscreen + Tab switch detection
+  // ✅ Anti-cheat: Fullscreen + Tab switch + Blur + Copy Protection
   useEffect(() => {
     if (!started || submission) return
 
+    const handleViolation = (reason: string) => {
+      setViolationCount(prev => prev + 1)
+      setViolationReason(reason) // Show custom modal
+    }
+
+    // 1. Chuyển Tab / Minimize
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
-        setViolationCount(prev => prev + 1)
-      } else if (document.visibilityState === 'visible') {
-        // Hiện cảnh báo khi quay lại tab
-        alert('⚠️ CẢNH BÁO: Hệ thống phát hiện bạn đã chuyển tab hoặc rời khỏi màn hình! Vi phạm này đã bị ghi lại.')
+        handleViolation('Rời khỏi tab làm bài')
+      }
+    }
+
+    // 2. Mất focus (Click sang app khác / màn hình khác)
+    const handleBlur = () => {
+      handleViolation('Mất tập trung vào màn hình làm bài (Blur)')
+    }
+
+    // 3. Thoát Fullscreen
+    const handleFullScreenChange = () => {
+      if (!document.fullscreenElement) {
+        handleViolation('Thoát chế độ toàn màn hình')
+      }
+    }
+
+    // 4. Chặn chuột phải & Copy/Paste
+    const preventDefault = (e: Event) => e.preventDefault()
+
+    // 5. Bắt phím (F12, PrintScreen, Alt+Tab...)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // PrintScreen (một số OS/browser chặn, nhưng thử bắt)
+      if (e.key === 'PrintScreen') {
+        handleViolation('Phát hiện chụp màn hình')
+        e.preventDefault()
+      }
+      // F12 (DevTools)
+      if (e.key === 'F12') {
+        e.preventDefault()
       }
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('blur', handleBlur)
+    document.addEventListener('fullscreenchange', handleFullScreenChange)
+
+    // Disable interactions
+    document.addEventListener('contextmenu', preventDefault)
+    document.addEventListener('copy', preventDefault)
+    document.addEventListener('cut', preventDefault)
+    document.addEventListener('paste', preventDefault)
+    window.addEventListener('keydown', handleKeyDown)
+
+    // Interval check fullscreen (đề phòng thoát bằng cách khác)
+    const interval = setInterval(() => {
+      if (!document.fullscreenElement && started && !submission) {
+        // Chỉ cảnh báo nếu chưa cảnh báo gần đây (avoid loop flood)
+        // Tuy nhiên logic trên event listener đã cover, interval chỉ backup
+      }
+    }, 2000)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('blur', handleBlur)
+      document.removeEventListener('fullscreenchange', handleFullScreenChange)
+      document.removeEventListener('contextmenu', preventDefault)
+      document.removeEventListener('copy', preventDefault)
+      document.removeEventListener('cut', preventDefault)
+      document.removeEventListener('paste', preventDefault)
+      window.removeEventListener('keydown', handleKeyDown)
+      clearInterval(interval)
+    }
   }, [started, submission])
 
   const enterFullScreen = () => {
@@ -430,7 +511,7 @@ export default function TakeTestPage() {
       const el = document.documentElement as any
       const requestMethod = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen
       if (requestMethod) {
-        requestMethod.call(el)
+        requestMethod.call(el).catch((err: any) => console.log('Fullscreen blocked:', err))
       }
     } catch (e) {
       console.error('Fullscreen error:', e)
@@ -570,7 +651,7 @@ export default function TakeTestPage() {
                 }
 
                 enterFullScreen()
-                setStarted(true)
+                setTimeout(() => setStarted(true), 100)
               }}
               className="w-full px-5 py-3 rounded-lg bg-[#00a0fa] text-white font-semibold"
             >
@@ -629,24 +710,68 @@ export default function TakeTestPage() {
               </div>
             )}
 
-            <div className="sticky bottom-0 bg-white border-t p-4 flex items-center justify-between gap-3">
-              <button onClick={resetForNewCode} className="px-5 py-3 rounded-xl bg-gray-200 text-gray-900 font-semibold">
-                Đổi mã khác
-              </button>
+            <div className="sticky bottom-0 bg-white border-t p-4 flex items-center justify-between gap-3 shadow-top z-50">
+              <div className="text-red-600 font-bold animate-pulse">
+                {violationCount > 0 ? `⚠️ Vi phạm: ${violationCount} lần` : ''}
+              </div>
 
-              <button
-                onClick={submit}
-                disabled={submitting || qLoading || questions.length === 0}
-                className="px-6 py-3 rounded-xl bg-[#00a0fa] text-white font-bold disabled:opacity-50"
-              >
-                {submitting ? 'Đang nộp...' : 'Nộp bài'}
-              </button>
+              <div className="flex gap-3">
+                <button onClick={resetForNewCode} className="px-5 py-3 rounded-xl bg-gray-200 text-gray-900 font-semibold">
+                  Đổi mã khác
+                </button>
+
+                <button
+                  onClick={submit}
+                  disabled={submitting || qLoading || questions.length === 0}
+                  className="px-6 py-3 rounded-xl bg-[#00a0fa] text-white font-bold disabled:opacity-50"
+                >
+                  {submitting ? 'Đang nộp...' : 'Nộp bài'}
+                </button>
+              </div>
             </div>
           </>
         )}
       </div>
 
+      {/* 🔴 WARNING MODAL (Thay cho alert để không bị exit fullscreen) */}
+      {violationReason && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/95 text-white p-6 animate-in fade-in duration-200">
+          <div className="max-w-md w-full bg-red-600 rounded-xl p-8 shadow-2xl text-center space-y-6 border-4 border-white">
+            <div className="text-6xl">⚠️</div>
+            <h2 className="text-3xl font-black uppercase tracking-wider">Cảnh báo vi phạm!</h2>
+
+            <div className="text-lg font-medium bg-red-700/50 p-4 rounded-lg">
+              {violationReason}
+            </div>
+
+            <p className="text-white/90">
+              Hệ thống đã ghi lại hành vi bất thường của bạn.
+              <br />
+              Vui lòng quay lại làm bài ngay lập tức.
+            </p>
+
+            <button
+              onClick={() => {
+                setViolationReason(null)
+                // Yêu cầu user click để kích hoạt lại fullscreen
+                // Thêm timeout nhỏ để đảm bảo state update xong & browser happy
+                setTimeout(() => enterFullScreen(), 100)
+              }}
+              className="w-full py-4 bg-white text-red-600 font-bold text-xl rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              ĐÃ HIỂU & QUAY LẠI LÀM BÀI
+            </button>
+          </div>
+        </div>
+      )}
+
       <style jsx global>{`
+        /* Chặn select text khi đang làm bài + ẩn scrollbar nếu cần */
+        body.take-test-mode {
+          user-select: none;
+          -webkit-user-select: none;
+          overflow-x: hidden;
+        }
         body.take-test-mode aside,
         body.take-test-mode .sidebar {
           display: none !important;

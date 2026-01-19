@@ -31,6 +31,7 @@ type Submission = {
   started_at: string | null
   submitted_at: string | null
   duration_seconds: number | null
+  violation_count: number
   created_at: string
 }
 
@@ -185,6 +186,13 @@ export default function ReportDetailPage() {
 
             <div>
               Thời gian làm: {formatDuration(submission.duration_seconds)}
+            </div>
+
+            <div>
+              Số vi phạm:
+              <span className={`font-semibold ml-1 ${submission.violation_count > 0 ? 'text-red-700' : 'text-gray-900'}`}>
+                {submission.violation_count ?? 0}
+              </span>
             </div>
           </div>
         </div>

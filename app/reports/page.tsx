@@ -22,6 +22,15 @@ type TestRow = {
   title: string
 }
 
+type WrongQuestionStat = {
+  question_id: string
+  content: string
+  test_title: string
+  wrong_count: number
+  total_attempts: number
+  wrong_percent: number
+}
+
 function formatDuration(seconds: number | null) {
   if (seconds === null || seconds === undefined) return '-'
   const m = Math.floor(seconds / 60)
@@ -36,6 +45,7 @@ export default function ReportsPage() {
 
   const [subs, setSubs] = useState<SubmissionRow[]>([])
   const [testsMap, setTestsMap] = useState<Record<string, TestRow>>({})
+  const [wrongStats, setWrongStats] = useState<WrongQuestionStat[]>([])
 
   useEffect(() => {
     const run = async () => {
@@ -75,6 +85,60 @@ export default function ReportsPage() {
         setTestsMap({})
       }
 
+      // 3) Load stats (Top wrong questions)
+      {
+        const { data: allAns, error: ansErr } = await supabase
+          .from('test_submission_answers')
+          .select('question_id, is_correct')
+
+        if (!ansErr && allAns) {
+          const statsMap = new Map<string, { total: number; wrong: number }>()
+          for (const a of allAns) {
+            const entry = statsMap.get(a.question_id) ?? { total: 0, wrong: 0 }
+            entry.total++
+            if (a.is_correct === false) entry.wrong++
+            statsMap.set(a.question_id, entry)
+          }
+
+          // Sort by wrong count desc
+          const sorted = Array.from(statsMap.entries())
+            .sort((a, b) => b[1].wrong - a[1].wrong)
+            .slice(0, 5) // Top 5
+
+          const topQIds = sorted.map(s => s[0])
+
+          if (topQIds.length > 0) {
+            const { data: qs } = await supabase
+              .from('questions')
+              .select('id, content, test_id')
+              .in('id', topQIds)
+
+            const relatedTestIds = Array.from(new Set(qs?.map(q => q.test_id))).filter(Boolean) as string[]
+
+            // We might already have these tests in testsMap, but to be sure/simple, let's just fetch needed ones or reuse
+            // Reuse logic: fetch missing only? for simplicity just fetch
+            const { data: ts } = await supabase.from('tests').select('id, title').in('id', relatedTestIds)
+            const tMap = new Map(ts?.map(t => [t.id, t.title]))
+
+            const finalStats: WrongQuestionStat[] = sorted.map(([qId, stat]) => {
+              const q = qs?.find(x => x.id === qId)
+              const testTitle = q ? (tMap.get(q.test_id) ?? 'Unknown') : 'Unknown'
+              return {
+                question_id: qId,
+                content: q?.content ?? 'Unknown',
+                test_title: testTitle,
+                wrong_count: stat.wrong,
+                total_attempts: stat.total,
+                wrong_percent: stat.total > 0 ? Math.round((stat.wrong / stat.total) * 100) : 0
+              }
+            })
+            setWrongStats(finalStats)
+          } else {
+            setWrongStats([])
+          }
+        }
+      }
+
       setLoading(false)
     }
 
@@ -97,6 +161,45 @@ export default function ReportsPage() {
         <h1 className="text-3xl font-bold text-[var(--primary)]">Báo cáo</h1>
         <p className="mt-1 text-sm text-gray-500">Danh sách các bài làm đã nộp.</p>
       </div>
+
+      {/* Stats Section */}
+      {wrongStats.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden p-6 space-y-4">
+          <h2 className="text-lg font-bold text-gray-800">Câu hỏi hay sai nhất</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-red-50 text-red-900">
+                <tr>
+                  <th className="p-3 rounded-l-lg">Câu hỏi</th>
+                  <th className="p-3">Bài test</th>
+                  <th className="p-3 text-center">Số lần sai</th>
+                  <th className="p-3 text-center rounded-r-lg">Tỉ lệ sai</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {wrongStats.map((stat) => (
+                  <tr key={stat.question_id} className="hover:bg-gray-50">
+                    <td className="p-3 font-medium text-gray-900 max-w-md truncate" title={stat.content}>
+                      {stat.content}
+                    </td>
+                    <td className="p-3 text-gray-600 whitespace-nowrap">
+                      {stat.test_title}
+                    </td>
+                    <td className="p-3 text-center font-semibold text-red-600">
+                      {stat.wrong_count} / {stat.total_attempts}
+                    </td>
+                    <td className="p-3 text-center">
+                      <span className="inline-block px-2 py-1 bg-red-100 text-red-700 font-bold rounded text-xs">
+                        {stat.wrong_percent}%
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -137,8 +240,8 @@ export default function ReportsPage() {
                   <td className="p-4 text-center whitespace-nowrap">
                     <span
                       className={`inline-flex items-center px-3 py-1 rounded-full text-xs border ${r.passed
-                          ? 'border-green-300 bg-green-50 text-green-700'
-                          : 'border-red-300 bg-red-50 text-red-700'
+                        ? 'border-green-300 bg-green-50 text-green-700'
+                        : 'border-red-300 bg-red-50 text-red-700'
                         }`}
                     >
                       {r.passed ? 'ĐẠT' : 'CHƯA ĐẠT'}
