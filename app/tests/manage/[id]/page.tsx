@@ -95,6 +95,7 @@ export default function ManageTestPage() {
     successMessage: '',
     failMessage: '',
     allowReview: true,
+    maxViolations: 0,
   })
 
   const [questions, setQuestions] = useState<Question[]>([])
@@ -141,6 +142,7 @@ export default function ManageTestPage() {
         successMessage: t.success_message ?? '',
         failMessage: t.fail_message ?? '',
         allowReview: !!t.allow_review,
+        maxViolations: Number(t.max_violations ?? 0),
       })
 
       // 2. Load Questions
@@ -272,6 +274,7 @@ export default function ManageTestPage() {
         success_message: form.successMessage?.trim() || null,
         fail_message: form.failMessage?.trim() || null,
         allow_review: !!form.allowReview,
+        max_violations: Number(form.maxViolations),
       }
 
       const { error: infoErr } = await supabase
@@ -426,8 +429,8 @@ export default function ManageTestPage() {
             onClick={togglePublish}
             disabled={toggling}
             className={`px-6 py-2.5 rounded-lg font-semibold transition-colors ${isPublished
-                ? 'bg-orange-500 text-white hover:bg-orange-600'
-                : 'bg-green-500 text-white hover:bg-green-600'
+              ? 'bg-orange-500 text-white hover:bg-orange-600'
+              : 'bg-green-500 text-white hover:bg-green-600'
               } disabled:opacity-50`}
           >
             {toggling ? 'Đang...' : isPublished ? '🔒 Ngừng xuất bản' : '✅ Xuất bản'}
@@ -503,6 +506,22 @@ export default function ManageTestPage() {
                 />
               </Field>
             </div>
+
+            <Field label="Số lần vi phạm tối đa (0 = không giới hạn)">
+              <input
+                type="number"
+                min="0"
+                value={form.maxViolations}
+                onChange={e =>
+                  setForm({ ...form, maxViolations: Number(e.target.value) })
+                }
+                disabled={isPublished}
+                className="w-full h-11 px-3 border border-gray-300 rounded-lg bg-white text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                Vi phạm bao gồm: chuyển tab, chụp màn hình, thu nhỏ màn hình. Khi vượt quá số lần cho phép, bài làm sẽ bị khóa.
+              </p>
+            </Field>
 
             <Field label="Mô tả">
               <textarea

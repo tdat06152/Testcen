@@ -435,8 +435,16 @@ export default function TakeTestPage() {
     if (!started || submission) return
 
     const handleViolation = (reason: string) => {
-      setViolationCount(prev => prev + 1)
+      const newCount = violationCount + 1
+      setViolationCount(newCount)
       setViolationReason(reason) // Show custom modal
+
+      // ✅ Check if exceeded max violations
+      const maxViolations = Number(test?.max_violations ?? 0)
+      if (maxViolations > 0 && newCount >= maxViolations) {
+        // Lock the test - will be handled in the modal
+        return
+      }
     }
 
     // 1. Chuyển Tab / Minimize
@@ -504,7 +512,7 @@ export default function TakeTestPage() {
       window.removeEventListener('keydown', handleKeyDown)
       clearInterval(interval)
     }
-  }, [started, submission])
+  }, [started, submission, violationCount, test?.max_violations])
 
   const enterFullScreen = () => {
     try {
@@ -734,36 +742,69 @@ export default function TakeTestPage() {
       </div>
 
       {/* 🔴 WARNING MODAL (Thay cho alert để không bị exit fullscreen) */}
-      {violationReason && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/95 text-white p-6 animate-in fade-in duration-200">
-          <div className="max-w-md w-full bg-red-600 rounded-xl p-8 shadow-2xl text-center space-y-6 border-4 border-white">
-            <div className="text-6xl">⚠️</div>
-            <h2 className="text-3xl font-black uppercase tracking-wider">Cảnh báo vi phạm!</h2>
+      {violationReason && (() => {
+        const maxViolations = Number(test?.max_violations ?? 0)
+        const isLocked = maxViolations > 0 && violationCount >= maxViolations
 
-            <div className="text-lg font-medium bg-red-700/50 p-4 rounded-lg">
-              {violationReason}
+        return (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/95 text-white p-6 animate-in fade-in duration-200">
+            <div className={`max-w-md w-full rounded-xl p-8 shadow-2xl text-center space-y-6 border-4 ${isLocked ? 'bg-black border-red-600' : 'bg-red-600 border-white'
+              }`}>
+              <div className="text-6xl">{isLocked ? '🔒' : '⚠️'}</div>
+              <h2 className="text-3xl font-black uppercase tracking-wider">
+                {isLocked ? 'Bài làm đã bị khóa!' : 'Cảnh báo vi phạm!'}
+              </h2>
+
+              <div className={`text-lg font-medium p-4 rounded-lg ${isLocked ? 'bg-red-900/50' : 'bg-red-700/50'
+                }`}>
+                {violationReason}
+              </div>
+
+              <div className="text-xl font-bold">
+                Vi phạm: {violationCount} {maxViolations > 0 ? `/ ${maxViolations}` : ''} lần
+              </div>
+
+              {isLocked ? (
+                <>
+                  <p className="text-white/90">
+                    Bạn đã vượt quá số lần vi phạm cho phép.
+                    <br />
+                    Bài làm của bạn đã bị khóa và không thể tiếp tục.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setViolationReason(null)
+                      // Force submit with current answers
+                      submit()
+                    }}
+                    className="w-full py-4 bg-white text-black font-bold text-xl rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    NỘP BÀI NGAY
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-white/90">
+                    Hệ thống đã ghi lại hành vi bất thường của bạn.
+                    <br />
+                    {maxViolations > 0 && `Còn ${maxViolations - violationCount} lần vi phạm trước khi bị khóa.`}
+                  </p>
+
+                  <button
+                    onClick={() => {
+                      setViolationReason(null)
+                      // ✅ KHÔNG tự động bật lại fullscreen - chỉ đóng modal
+                    }}
+                    className="w-full py-4 bg-white text-red-600 font-bold text-xl rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    ĐÃ HIỂU
+                  </button>
+                </>
+              )}
             </div>
-
-            <p className="text-white/90">
-              Hệ thống đã ghi lại hành vi bất thường của bạn.
-              <br />
-              Vui lòng quay lại làm bài ngay lập tức.
-            </p>
-
-            <button
-              onClick={() => {
-                setViolationReason(null)
-                // Yêu cầu user click để kích hoạt lại fullscreen
-                // Thêm timeout nhỏ để đảm bảo state update xong & browser happy
-                setTimeout(() => enterFullScreen(), 100)
-              }}
-              className="w-full py-4 bg-white text-red-600 font-bold text-xl rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              ĐÃ HIỂU & QUAY LẠI LÀM BÀI
-            </button>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       <style jsx global>{`
         /* Chặn select text khi đang làm bài + ẩn scrollbar nếu cần */
