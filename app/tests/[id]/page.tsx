@@ -58,6 +58,9 @@ export default function TakeTestPage() {
   const [submitting, setSubmitting] = useState(false)
   const [submission, setSubmission] = useState<Submission | null>(null)
 
+  // ✅ Timer state
+  const [timeLeft, setTimeLeft] = useState<number | null>(null)
+
   const title = useMemo(() => test?.title || 'Làm bài kiểm tra', [test?.title])
 
   // Ẩn sidebar nhanh
@@ -526,6 +529,55 @@ export default function TakeTestPage() {
     }
   }
 
+  const formatTime = (seconds: number) => {
+    const h = Math.floor(seconds / 3600)
+    const m = Math.floor((seconds % 3600) / 60)
+    const s = seconds % 60
+    return `${h > 0 ? `${h.toString().padStart(2, '0')}:` : ''}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+  }
+
+  // ✅ Countdown logic
+  useEffect(() => {
+    if (!started || submission || !testId || !accessCodeId) return
+
+    // Nếu duration_minutes <= 0 hoặc null thì coi như vô hạn
+    const durationMins = Number(test?.duration_minutes ?? 0)
+    if (durationMins <= 0) {
+      setTimeLeft(null)
+      return
+    }
+
+    const durationSeconds = durationMins * 60
+    const startKey = `test_started_at:${testId}:${accessCodeId}`
+    const startedAtStr = localStorage.getItem(startKey)
+
+    if (!startedAtStr) return
+
+    const startedAt = new Date(startedAtStr)
+
+    const updateTimer = () => {
+      const now = new Date()
+      const elapsedSeconds = Math.floor((now.getTime() - startedAt.getTime()) / 1000)
+      const remaining = durationSeconds - elapsedSeconds
+
+      if (remaining <= 0) {
+        setTimeLeft(0)
+        // Auto submit if time is up
+        if (!submitting && !submission) {
+          console.log('Time is up! Auto-submitting...')
+          submit()
+        }
+      } else {
+        setTimeLeft(remaining)
+      }
+    }
+
+    updateTimer() // run once immediately
+    const interval = setInterval(updateTimer, 1000)
+
+    return () => clearInterval(interval)
+  }, [started, submission, test?.duration_minutes, testId, accessCodeId, submitting])
+
   const message = useMemo(() => {
     if (!submission) return ''
     return submission.passed
@@ -719,19 +771,26 @@ export default function TakeTestPage() {
             )}
 
             <div className="sticky bottom-0 bg-white border-t p-4 flex items-center justify-between gap-3 shadow-top z-50">
-              <div className="text-red-600 font-bold animate-pulse">
-                {violationCount > 0 ? `⚠️ Vi phạm: ${violationCount} lần` : ''}
+              <div className="flex flex-col">
+                <div className="text-red-600 font-bold animate-pulse">
+                  {violationCount > 0 ? `⚠️ Vi phạm: ${violationCount} lần` : ''}
+                </div>
+                {timeLeft !== null && (
+                  <div className={`text-xl font-black ${timeLeft < 60 ? 'text-red-600 animate-bounce' : 'text-gray-900'}`}>
+                    ⏱️ {formatTime(timeLeft)}
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3">
-                <button onClick={resetForNewCode} className="px-5 py-3 rounded-xl bg-gray-200 text-gray-900 font-semibold">
+                <button onClick={resetForNewCode} className="px-5 py-3 rounded-xl bg-gray-200 text-gray-900 font-semibold text-sm">
                   Đổi mã khác
                 </button>
 
                 <button
                   onClick={submit}
                   disabled={submitting || qLoading || questions.length === 0}
-                  className="px-6 py-3 rounded-xl bg-[#00a0fa] text-white font-bold disabled:opacity-50"
+                  className="px-8 py-3 rounded-xl bg-[#00a0fa] text-white font-bold text-lg disabled:opacity-50"
                 >
                   {submitting ? 'Đang nộp...' : 'Nộp bài'}
                 </button>
