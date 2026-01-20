@@ -36,6 +36,7 @@ export default function CreateTestPage() {
     successMessage: '',
     failMessage: '',
     allowReview: true,
+    maxViolations: 0,
   })
 
   /* ===== SECTION 2 ===== */
@@ -72,6 +73,7 @@ export default function CreateTestPage() {
       success_message: form.successMessage?.trim() || null,
       fail_message: form.failMessage?.trim() || null,
       allow_review: !!form.allowReview,
+      max_violations: Number(form.maxViolations),
     }
 
     const { data: test, error: testError } = await supabase
@@ -191,6 +193,21 @@ export default function CreateTestPage() {
                 />
               </Field>
             </div>
+
+            <Field label="Số lần vi phạm tối đa (0 = không giới hạn)">
+              <input
+                type="number"
+                min="0"
+                value={form.maxViolations}
+                onChange={e =>
+                  setForm({ ...form, maxViolations: Number(e.target.value) })
+                }
+                className="w-full h-11 px-3 border border-gray-300 rounded-lg bg-white text-gray-900"
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                Vi phạm bao gồm: chuyển tab, chụp màn hình, thu nhỏ màn hình. Khi vượt quá số lần cho phép, bài làm sẽ bị khóa.
+              </p>
+            </Field>
 
             <Field label="Mô tả">
               <textarea
