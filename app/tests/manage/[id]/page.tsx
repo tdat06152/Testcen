@@ -80,6 +80,8 @@ export default function ManageTestPage() {
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [testStatus, setTestStatus] = useState<'draft' | 'published'>('draft')
+  const [toggling, setToggling] = useState(false)
 
   /* ===== DATA STATE ===== */
   const [form, setForm] = useState({
@@ -116,6 +118,9 @@ export default function ManageTestPage() {
         setLoading(false)
         return
       }
+
+      // Save status
+      setTestStatus(t.status ?? 'draft')
 
       // Map Info
       const timeLimitOn =
@@ -205,9 +210,34 @@ export default function ManageTestPage() {
     load()
   }, [testId])
 
+  /* ===== TOGGLE PUBLISH ===== */
+  const togglePublish = async () => {
+    if (!testId) return
+    const nextStatus = testStatus === 'published' ? 'draft' : 'published'
+    setToggling(true)
+    try {
+      const { error } = await supabase
+        .from('tests')
+        .update({ status: nextStatus })
+        .eq('id', testId)
+      if (error) throw error
+      setTestStatus(nextStatus)
+      alert(nextStatus === 'published' ? '✅ Đã xuất bản!' : '✅ Đã chuyển về nháp!')
+    } catch (err: any) {
+      alert(err.message || 'Lỗi')
+    } finally {
+      setToggling(false)
+    }
+  }
+
   /* ===== SAVE ALL ===== */
   const saveAll = async () => {
     if (!testId) return
+
+    // Check if published
+    if (testStatus === 'published') {
+      return alert('⚠️ Không thể chỉnh sửa bài test đang xuất bản. Vui lòng ngừng xuất bản trước!')
+    }
 
     // Validate Info
     if (!form.name.trim()) return alert('Chưa nhập tên bài kiểm tra')
@@ -359,6 +389,10 @@ export default function ManageTestPage() {
 
   /* ===== DELETE QUESTION ===== */
   const deleteQuestion = async (index: number) => {
+    if (testStatus === 'published') {
+      return alert('⚠️ Không thể xóa câu hỏi khi bài test đang xuất bản!')
+    }
+
     const q = questions[index]
     const isNew = q.id.startsWith('new-')
 
@@ -380,10 +414,46 @@ export default function ManageTestPage() {
 
   if (loading) return <div className="p-8">Đang tải...</div>
 
+  const isPublished = testStatus === 'published'
+
   return (
     <div className="min-h-screen w-full bg-white text-gray-900">
       <div className="max-w-6xl mx-auto px-8 py-10 space-y-8 pb-32">
-        <h1 className="text-3xl font-bold">Quản lý bài kiểm tra</h1>
+        {/* Header with Title and Publish Toggle */}
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">Quản lý bài kiểm tra</h1>
+          <button
+            onClick={togglePublish}
+            disabled={toggling}
+            className={`px-6 py-2.5 rounded-lg font-semibold transition-colors ${isPublished
+                ? 'bg-orange-500 text-white hover:bg-orange-600'
+                : 'bg-green-500 text-white hover:bg-green-600'
+              } disabled:opacity-50`}
+          >
+            {toggling ? 'Đang...' : isPublished ? '🔒 Ngừng xuất bản' : '✅ Xuất bản'}
+          </button>
+        </div>
+
+        {/* Warning Banner when Published */}
+        {isPublished && (
+          <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-orange-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-semibold text-orange-800">
+                  🔒 Bài test đang ở trạng thái xuất bản
+                </p>
+                <p className="text-sm text-orange-700 mt-1">
+                  Không thể chỉnh sửa khi đang xuất bản. Nhấn nút "Ngừng xuất bản" ở trên để có thể chỉnh sửa.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* TABS */}
         <div className="flex gap-8 border-b border-gray-200">
@@ -416,7 +486,8 @@ export default function ManageTestPage() {
                 <input
                   value={form.name}
                   onChange={e => setForm({ ...form, name: e.target.value })}
-                  className="w-full h-11 px-3 border border-gray-300 rounded-lg bg-white text-gray-900"
+                  disabled={isPublished}
+                  className="w-full h-11 px-3 border border-gray-300 rounded-lg bg-white text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
               </Field>
 
@@ -427,7 +498,8 @@ export default function ManageTestPage() {
                   onChange={e =>
                     setForm({ ...form, passScore: Number(e.target.value) })
                   }
-                  className="w-full h-11 px-3 border border-gray-300 rounded-lg bg-white text-gray-900"
+                  disabled={isPublished}
+                  className="w-full h-11 px-3 border border-gray-300 rounded-lg bg-white text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
               </Field>
             </div>
@@ -438,7 +510,8 @@ export default function ManageTestPage() {
                 onChange={e =>
                   setForm({ ...form, description: e.target.value })
                 }
-                className="w-full min-h-[110px] px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
+                disabled={isPublished}
+                className="w-full min-h-[110px] px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </Field>
 
@@ -451,6 +524,7 @@ export default function ManageTestPage() {
                     onChange={e =>
                       setForm({ ...form, unlimitedTime: e.target.checked })
                     }
+                    disabled={isPublished}
                   />
                   Không giới hạn thời gian
                 </label>
@@ -466,7 +540,8 @@ export default function ManageTestPage() {
                         timeMinutes: Number(e.target.value),
                       })
                     }
-                    className="w-full h-11 px-3 border border-gray-300 rounded-lg bg-white text-gray-900"
+                    disabled={isPublished}
+                    className="w-full h-11 px-3 border border-gray-300 rounded-lg bg-white text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 )}
               </div>
@@ -478,6 +553,7 @@ export default function ManageTestPage() {
                   onChange={e =>
                     setForm({ ...form, allowReview: e.target.checked })
                   }
+                  disabled={isPublished}
                 />
                 Cho phép xem lại bài làm
               </label>
@@ -489,7 +565,8 @@ export default function ManageTestPage() {
                   type="datetime-local"
                   value={form.validFrom}
                   onChange={e => setForm({ ...form, validFrom: e.target.value })}
-                  className="w-full h-11 px-3 border border-gray-300 rounded-lg bg-white text-gray-900"
+                  disabled={isPublished}
+                  className="w-full h-11 px-3 border border-gray-300 rounded-lg bg-white text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
               </Field>
 
@@ -498,7 +575,8 @@ export default function ManageTestPage() {
                   type="datetime-local"
                   value={form.validTo}
                   onChange={e => setForm({ ...form, validTo: e.target.value })}
-                  className="w-full h-11 px-3 border border-gray-300 rounded-lg bg-white text-gray-900"
+                  disabled={isPublished}
+                  className="w-full h-11 px-3 border border-gray-300 rounded-lg bg-white text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
               </Field>
             </div>
@@ -510,7 +588,8 @@ export default function ManageTestPage() {
                   onChange={e =>
                     setForm({ ...form, successMessage: e.target.value })
                   }
-                  className="w-full min-h-[90px] px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
+                  disabled={isPublished}
+                  className="w-full min-h-[90px] px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
               </Field>
 
@@ -520,7 +599,8 @@ export default function ManageTestPage() {
                   onChange={e =>
                     setForm({ ...form, failMessage: e.target.value })
                   }
-                  className="w-full min-h-[90px] px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
+                  disabled={isPublished}
+                  className="w-full min-h-[90px] px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
               </Field>
             </div>
@@ -546,7 +626,8 @@ export default function ManageTestPage() {
                   },
                 ])
               }
-              className="px-5 py-2 rounded-lg bg-[#00a0fa] text-white font-semibold"
+              disabled={isPublished}
+              className="px-5 py-2 rounded-lg bg-[#00a0fa] text-white font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
               + Thêm câu hỏi
             </button>
@@ -571,6 +652,7 @@ export default function ManageTestPage() {
                         }
                         setQuestions(copy)
                       }}
+                      disabled={isPublished}
                       className="h-10 px-3 border border-gray-300 rounded-lg bg-white text-gray-900"
                     >
                       <option value="single">1 đáp án</option>
@@ -580,7 +662,8 @@ export default function ManageTestPage() {
 
                     <button
                       onClick={() => deleteQuestion(qi)}
-                      className="text-red-500 hover:text-red-700 font-medium ml-3"
+                      disabled={isPublished}
+                      className="text-red-500 hover:text-red-700 font-medium ml-3 disabled:text-gray-400 disabled:cursor-not-allowed"
                       title="Xóa câu hỏi này"
                     >
                       Xóa
@@ -601,6 +684,10 @@ export default function ManageTestPage() {
                       }}
                       onPaste={async e => {
                         if (!testId) return
+                        if (isPublished) {
+                          e.preventDefault()
+                          return alert('⚠️ Không thể upload ảnh khi bài test đang xuất bản!')
+                        }
                         const file = getPastedImageFile(e)
                         if (!file) return
                         e.preventDefault()
@@ -613,7 +700,8 @@ export default function ManageTestPage() {
                           alert(err?.message ?? 'Upload ảnh thất bại')
                         }
                       }}
-                      className="w-full min-h-[120px] px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
+                      disabled={isPublished}
+                      className="w-full min-h-[120px] px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
                     {q.image_url && (
                       <div className="relative inline-block">
@@ -624,7 +712,8 @@ export default function ManageTestPage() {
                             copy[qi].image_url = null
                             setQuestions(copy)
                           }}
-                          className="absolute top-1 right-1 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs"
+                          disabled={isPublished}
+                          className="absolute top-1 right-1 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs disabled:bg-gray-400 disabled:cursor-not-allowed"
                           title="Xoá ảnh"
                         >
                           ✕
@@ -648,6 +737,7 @@ export default function ManageTestPage() {
                               copy[qi].options[oi].isCorrect = !o.isCorrect
                               setQuestions(copy)
                             }}
+                            disabled={isPublished}
                           />
 
                           <div className="flex-1 space-y-2">
@@ -661,6 +751,10 @@ export default function ManageTestPage() {
                               }}
                               onPaste={async e => {
                                 if (!testId) return
+                                if (isPublished) {
+                                  e.preventDefault()
+                                  return alert('⚠️ Không thể upload ảnh khi bài test đang xuất bản!')
+                                }
                                 const file = getPastedImageFile(e)
                                 if (!file) return
                                 e.preventDefault()
@@ -673,7 +767,8 @@ export default function ManageTestPage() {
                                   alert(err?.message ?? 'Upload ảnh thất bại')
                                 }
                               }}
-                              className="w-full h-10 px-3 border border-gray-300 rounded-lg bg-white text-gray-900"
+                              disabled={isPublished}
+                              className="w-full h-10 px-3 border border-gray-300 rounded-lg bg-white text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
                             />
                             {o.image_url && (
                               <div className="relative inline-block">
@@ -684,7 +779,8 @@ export default function ManageTestPage() {
                                     copy[qi].options[oi].image_url = null
                                     setQuestions(copy)
                                   }}
-                                  className="absolute top-1 right-1 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs"
+                                  disabled={isPublished}
+                                  className="absolute top-1 right-1 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs disabled:bg-gray-400 disabled:cursor-not-allowed"
                                   title="Xoá ảnh"
                                 >
                                   ✕
@@ -705,7 +801,8 @@ export default function ManageTestPage() {
                                 })
                                 setQuestions(copy)
                               }}
-                              className="text-red-500 text-sm font-medium hover:text-red-700 hover:underline"
+                              disabled={isPublished}
+                              className="text-red-500 text-sm font-medium hover:text-red-700 hover:underline disabled:text-gray-400 disabled:cursor-not-allowed"
                             >
                               Xóa
                             </button>
@@ -724,7 +821,8 @@ export default function ManageTestPage() {
                           })
                           setQuestions(copy)
                         }}
-                        className="text-sm font-medium text-[#ff5200]"
+                        disabled={isPublished}
+                        className="text-sm font-medium text-[#ff5200] disabled:text-gray-400 disabled:cursor-not-allowed"
                       >
                         + Thêm đáp án
                       </button>
@@ -741,10 +839,11 @@ export default function ManageTestPage() {
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-8 py-4 flex justify-end">
         <button
           onClick={saveAll}
-          disabled={saving}
-          className="px-8 py-3 rounded-xl bg-[#ff5200] text-white font-bold text-lg disabled:opacity-50"
+          disabled={saving || isPublished}
+          className="px-8 py-3 rounded-xl bg-[#ff5200] text-white font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          title={isPublished ? 'Ngừng xuất bản trước khi lưu thay đổi' : ''}
         >
-          {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+          {saving ? 'Đang lưu...' : isPublished ? '🔒 Đã khóa' : 'Lưu thay đổi'}
         </button>
       </div>
     </div>
