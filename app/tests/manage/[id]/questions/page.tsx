@@ -84,7 +84,7 @@ export default function ManageTestQuestionsPage() {
         return
       }
 
-      const qIds = (qs ?? []).map(q => q.id)
+      const qIds = (qs ?? []).map((q: any) => q.id)
 
       const rawByQ: Record<string, any[]> = {}
 
@@ -102,13 +102,13 @@ export default function ManageTestQuestionsPage() {
           return
         }
 
-        for (const a of ans ?? []) {
+        for (const a of (ans ?? []) as any[]) {
           if (!rawByQ[a.question_id]) rawByQ[a.question_id] = []
           rawByQ[a.question_id].push(a)
         }
       }
 
-      const mapped: Question[] = (qs ?? []).map(q => {
+      const mapped: Question[] = (qs ?? []).map((q: any) => {
         const rawAnswers = rawByQ[q.id] ?? []
 
         const options: AnswerOption[] =

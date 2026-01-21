@@ -114,20 +114,20 @@ export default function ReportsPage() {
               .select('id, content, test_id')
               .in('id', topQIds)
 
-            const relatedTestIds = Array.from(new Set(qs?.map(q => q.test_id))).filter(Boolean) as string[]
+            const relatedTestIds = Array.from(new Set(qs?.map((q: any) => q.test_id))).filter(Boolean) as string[]
 
             // We might already have these tests in testsMap, but to be sure/simple, let's just fetch needed ones or reuse
             // Reuse logic: fetch missing only? for simplicity just fetch
             const { data: ts } = await supabase.from('tests').select('id, title').in('id', relatedTestIds)
-            const tMap = new Map(ts?.map(t => [t.id, t.title]))
+            const tMap = new Map((ts ?? []).map((t: any) => [t.id, t.title]))
 
             const finalStats: WrongQuestionStat[] = sorted.map(([qId, stat]) => {
-              const q = qs?.find(x => x.id === qId)
-              const testTitle = q ? (tMap.get(q.test_id) ?? 'Unknown') : 'Unknown'
+              const q = qs?.find((x: any) => x.id === qId)
+              const testTitle = q ? (tMap.get(q.test_id) as string || 'Unknown') : 'Unknown'
               return {
                 question_id: qId,
                 content: q?.content ?? 'Unknown',
-                test_title: testTitle,
+                test_title: String(testTitle),
                 wrong_count: stat.wrong,
                 total_attempts: stat.total,
                 wrong_percent: stat.total > 0 ? Math.round((stat.wrong / stat.total) * 100) : 0
@@ -256,8 +256,8 @@ export default function ReportsPage() {
                   <td className="p-4 text-center whitespace-nowrap">
                     <span
                       className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${r.violation_count > 0
-                          ? 'bg-red-100 text-red-700 border border-red-300'
-                          : 'bg-gray-100 text-gray-600 border border-gray-300'
+                        ? 'bg-red-100 text-red-700 border border-red-300'
+                        : 'bg-gray-100 text-gray-600 border border-gray-300'
                         }`}
                     >
                       {r.violation_count ?? 0}

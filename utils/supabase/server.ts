@@ -2,11 +2,30 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 export async function createClient() {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!url || !key) {
+        return {
+            auth: {
+                getUser: async () => ({ data: { user: null }, error: null }),
+            },
+            from: () => ({
+                select: () => ({
+                    eq: () => ({
+                        single: async () => ({ data: null, error: null }),
+                        maybeSingle: async () => ({ data: null, error: null }),
+                    }),
+                }),
+            }),
+        } as any;
+    }
+
     const cookieStore = await cookies()
 
     return createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://example.com',
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'example',
+        url,
+        key,
         {
             cookies: {
                 getAll() {
