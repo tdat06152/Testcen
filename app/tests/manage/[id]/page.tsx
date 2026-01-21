@@ -3,6 +3,7 @@
 import { useEffect, useState, type ClipboardEvent } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
+import * as XLSX from 'xlsx'
 
 type QuestionType = 'single' | 'multiple' | 'essay'
 
@@ -95,6 +96,11 @@ export default function ManageTestPage() {
   const [saving, setSaving] = useState(false)
   const [testStatus, setTestStatus] = useState<'draft' | 'published'>('draft')
   const [toggling, setToggling] = useState(false)
+
+  // Export State
+  const [exportModal, setExportModal] = useState<{ id: string; title: string } | null>(null)
+  const [dateRange, setDateRange] = useState({ from: '', to: '' })
+  const [exporting, setExporting] = useState(false)
 
   /* ===== DATA STATE ===== */
   const [form, setForm] = useState({
@@ -242,6 +248,65 @@ export default function ManageTestPage() {
       alert(err.message || 'Lỗi')
     } finally {
       setToggling(false)
+    }
+  }
+
+
+  /* ===== EXPORT ===== */
+  const handleExport = async (type: 'csv' | 'excel' | 'google') => {
+    if (!exportModal) return
+    setExporting(true)
+
+    try {
+      let query = supabase
+        .from('test_submissions')
+        .select('*')
+        .eq('test_id', exportModal.id)
+        .order('created_at', { ascending: false })
+
+      if (dateRange.from) query = query.gte('created_at', new Date(dateRange.from).toISOString())
+      if (dateRange.to) query = query.lte('created_at', new Date(dateRange.to).toISOString())
+
+      const { data, error } = await query
+
+      if (error) throw error
+      if (!data || data.length === 0) {
+        alert('Không có dữ liệu trong khoảng thời gian này')
+        setExporting(false)
+        return
+      }
+
+      // Map data
+      const rows = data.map((s: any) => ({
+        'ID': s.id,
+        'Họ tên': s.candidate_name,
+        'Điểm số': s.score_percent,
+        'Số câu đúng': s.correct_count,
+        'Tổng câu': s.total_count,
+        'Kết quả': s.passed ? 'ĐẠT' : 'KHÔNG ĐẠT',
+        'Thời gian làm bài (giây)': s.duration_seconds,
+        'Số lần vi phạm': s.violation_count,
+        'Ngày nộp': new Date(s.created_at).toLocaleString('vi-VN'),
+      }))
+
+      const workSheet = XLSX.utils.json_to_sheet(rows)
+      const workBook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workBook, workSheet, "Submissions")
+
+      if (type === 'google') {
+        const csv = XLSX.utils.sheet_to_csv(workSheet, { FS: '\t' })
+        await navigator.clipboard.writeText(csv)
+        alert('✅ Đã copy dữ liệu! Bạn có thể paste trực tiếp vào Google Sheets.')
+      } else if (type === 'csv') {
+        XLSX.writeFile(workBook, `Report_${exportModal.title}_${Date.now()}.csv`)
+      } else {
+        XLSX.writeFile(workBook, `Report_${exportModal.title}_${Date.now()}.xlsx`)
+      }
+
+    } catch (err: any) {
+      alert('Lỗi xuất dữ liệu: ' + err.message)
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -447,6 +512,27 @@ export default function ManageTestPage() {
               } disabled:opacity-50`}
           >
             {toggling ? 'Đang...' : isPublished ? '🔒 Ngừng xuất bản' : '✅ Xuất bản'}
+          </button>
+
+          {/* Export Button */}
+          <button
+            onClick={() => {
+              if (!testId) return
+              const now = new Date()
+              now.setMinutes(now.getMinutes() - now.getTimezoneOffset())
+              const start = new Date()
+              start.setDate(start.getDate() - 30)
+              start.setMinutes(start.getMinutes() - start.getTimezoneOffset())
+
+              setExportModal({ id: testId, title: form.name })
+              setDateRange({
+                from: start.toISOString().slice(0, 16),
+                to: now.toISOString().slice(0, 16)
+              })
+            }}
+            className="ml-3 px-6 py-2.5 rounded-lg font-semibold bg-teal-500 text-white hover:bg-teal-600 transition-colors"
+          >
+            Xuất dữ liệu
           </button>
         </div>
 
