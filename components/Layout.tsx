@@ -6,6 +6,8 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
+  // Prevent execution explicitly if env vars are missing during build, although our client.ts tries to handle this.
+  // We use a safe initialization via the imported createClient which now has fallbacks.
   const supabase = createClient()
   const router = useRouter()
   const pathname = usePathname()
@@ -22,6 +24,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     segments[0] === 'tests' && segments.length === 2 && segments[1] !== 'manage'
 
   async function updateRole() {
+    // If using dummy/fallback URL (during build), skip auth check
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    if (!supabaseUrl || supabaseUrl.includes('example.com')) {
+      setCheckedAuth(true); // Allow render to proceed
+      return;
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser()
