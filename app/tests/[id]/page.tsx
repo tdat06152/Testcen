@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 
@@ -63,6 +63,9 @@ export default function TakeTestPage() {
   // Anti-cheat state
   const [violationCount, setViolationCount] = useState(0)
   const [violationReason, setViolationReason] = useState<string | null>(null)
+  const [autoLocked, setAutoLocked] = useState(false)
+  const [secondsToLock, setSecondsToLock] = useState<number | null>(null)
+  const lockTimerRef = useRef<any>(null)
 
   const [qLoading, setQLoading] = useState(false)
   const [questions, setQuestions] = useState<Question[]>([])
@@ -97,6 +100,8 @@ export default function TakeTestPage() {
     setStarted(false)
     setViolationCount(0)
     setViolationReason(null)
+    setAutoLocked(false)
+    setSecondsToLock(null)
   }
 
   // Load test + get stored access code id
@@ -593,6 +598,56 @@ export default function TakeTestPage() {
     return () => clearInterval(interval)
   }, [started, submission, test?.duration_minutes, testId, accessCodeId, submitting])
 
+  // ✅ Anti-cheat: Auto-lock after 30s of being hidden/blurred
+  useEffect(() => {
+    if (!started || submission || autoLocked) return
+
+    const checkAndStartTimer = () => {
+      const isHidden = document.visibilityState === 'hidden'
+      const isBlurred = !document.hasFocus()
+
+      if (isHidden || isBlurred) {
+        if (!lockTimerRef.current) {
+          setSecondsToLock(30)
+          lockTimerRef.current = setInterval(() => {
+            setSecondsToLock((prev) => {
+              if (prev !== null && prev <= 1) {
+                setAutoLocked(true)
+                if (lockTimerRef.current) clearInterval(lockTimerRef.current)
+                lockTimerRef.current = null
+                return 0
+              }
+              return (prev ?? 30) - 1
+            })
+          }, 1000)
+        }
+      } else {
+        if (lockTimerRef.current) {
+          clearInterval(lockTimerRef.current)
+          lockTimerRef.current = null
+        }
+        setSecondsToLock(null)
+      }
+    }
+
+    // Check every second as a backup, and also listen to events
+    const interval = setInterval(checkAndStartTimer, 1000)
+    window.addEventListener('focus', checkAndStartTimer)
+    window.addEventListener('blur', checkAndStartTimer)
+    document.addEventListener('visibilitychange', checkAndStartTimer)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', checkAndStartTimer)
+      window.removeEventListener('blur', checkAndStartTimer)
+      document.removeEventListener('visibilitychange', checkAndStartTimer)
+      if (lockTimerRef.current) {
+        clearInterval(lockTimerRef.current)
+        lockTimerRef.current = null
+      }
+    }
+  }, [started, submission, autoLocked])
+
   const message = useMemo(() => {
     if (!submission) return ''
     return submission.passed
@@ -835,7 +890,8 @@ export default function TakeTestPage() {
       {/* 🔴 WARNING MODAL (Thay cho alert để không bị exit fullscreen) */}
       {violationReason && (() => {
         const maxViolations = Number(test?.max_violations ?? 0)
-        const isLocked = maxViolations > 0 && violationCount >= maxViolations
+        const isLocked = (maxViolations > 0 && violationCount >= maxViolations) || autoLocked
+        const lockReason = autoLocked ? 'Rời khỏi màn hình quá 30 giây' : violationReason
 
         return (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/95 text-white p-6 animate-in fade-in duration-200">
@@ -848,8 +904,15 @@ export default function TakeTestPage() {
 
               <div className={`text-lg font-medium p-4 rounded-lg ${isLocked ? 'bg-red-900/50' : 'bg-red-700/50'
                 }`}>
-                {violationReason}
+                {lockReason}
               </div>
+
+              {!isLocked && secondsToLock !== null && (
+                <div className="text-2xl font-black text-white bg-black/30 p-4 rounded-xl animate-pulse border border-white/20">
+                  ⚠️ QUAY LẠI NGAY! <br />
+                  Tự động khóa sau: <span className="text-yellow-400">{secondsToLock}s</span>
+                </div>
+              )}
 
               <div className="text-xl font-bold">
                 Vi phạm: {violationCount} {maxViolations > 0 ? `/ ${maxViolations}` : ''} lần
