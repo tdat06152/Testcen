@@ -11,14 +11,14 @@ type AnswerOption = {
   dbId?: string
   text: string
   isCorrect: boolean
-  image_url?: string | null
+  images: string[] // Changed from image_url
 }
 
 type Question = {
   id: string
   content: string
   type: QuestionType
-  image_url?: string | null
+  images: string[] // Changed from image_url
   options: AnswerOption[]
 }
 
@@ -54,8 +54,21 @@ async function uploadImageToStorage(supabase: any, file: File, testId: string) {
 
   if (error) throw error
 
+  if (error) throw error
+
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path)
   return data.publicUrl as string
+}
+
+function parseImages(val: string | null): string[] {
+  if (!val) return []
+  try {
+    if (val.trim().startsWith('[')) {
+      const parsed = JSON.parse(val)
+      if (Array.isArray(parsed)) return parsed.filter((x: any) => typeof x === 'string')
+    }
+  } catch (e) { }
+  return [val]
 }
 
 function getPastedImageFile(e: ClipboardEvent) {
@@ -184,14 +197,14 @@ export default function ManageTestPage() {
                 dbId: a.id,
                 text: a.content ?? '',
                 isCorrect: !!a.is_correct,
-                image_url: a.image_url ?? null,
+                images: parseImages(a.image_url),
               }))
 
           // Fix empty options if non-essay
           if (q.type !== 'essay' && options.length === 0) {
             options.push(
-              { id: 'A', text: '', isCorrect: false },
-              { id: 'B', text: '', isCorrect: false }
+              { id: 'A', text: '', isCorrect: false, images: [] },
+              { id: 'B', text: '', isCorrect: false, images: [] }
             )
           }
 
@@ -199,7 +212,7 @@ export default function ManageTestPage() {
             id: q.id,
             content: q.content ?? '',
             type: q.type as QuestionType,
-            image_url: q.image_url ?? null,
+            images: parseImages(q.image_url),
             options,
           }
         })
@@ -248,7 +261,7 @@ export default function ManageTestPage() {
     if (questions.length === 0) return alert('Chưa có câu hỏi')
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i]
-      if (!q.content?.trim() && !q.image_url) {
+      if (!q.content?.trim() && q.images.length === 0) {
         return alert(`Câu ${i + 1}: chưa nhập nội dung hoặc hình ảnh`)
       }
       if (q.type !== 'essay') {
@@ -311,7 +324,7 @@ export default function ManageTestPage() {
           type: q.type,
           correct_answer: correctAnsStr,
           options: q.type === 'essay' ? [] : q.options.map(o => o.id), // A, B, C...
-          image_url: q.image_url ?? null,
+          image_url: q.images.length > 0 ? JSON.stringify(q.images) : null,
         }
 
         let realQId = q.id
@@ -357,7 +370,7 @@ export default function ManageTestPage() {
             question_id: realQId,
             content: o.text ?? '',
             is_correct: !!o.isCorrect,
-            image_url: o.image_url ?? null,
+            image_url: o.images.length > 0 ? JSON.stringify(o.images) : null,
           }))
 
           if (ansPayload.length > 0) {
@@ -638,9 +651,10 @@ export default function ManageTestPage() {
                     content: '',
                     type: 'single',
                     image_url: null,
+                    images: [],
                     options: [
-                      { id: 'A', text: '', isCorrect: false },
-                      { id: 'B', text: '', isCorrect: false },
+                      { id: 'A', text: '', isCorrect: false, images: [] },
+                      { id: 'B', text: '', isCorrect: false, images: [] },
                     ],
                   },
                 ])
@@ -665,8 +679,8 @@ export default function ManageTestPage() {
                         if (copy[qi].type === 'essay') copy[qi].options = []
                         if (copy[qi].type !== 'essay' && copy[qi].options.length === 0) {
                           copy[qi].options = [
-                            { id: 'A', text: '', isCorrect: false },
-                            { id: 'B', text: '', isCorrect: false },
+                            { id: 'A', text: '', isCorrect: false, images: [] },
+                            { id: 'B', text: '', isCorrect: false, images: [] },
                           ]
                         }
                         setQuestions(copy)
@@ -713,7 +727,7 @@ export default function ManageTestPage() {
                         try {
                           const url = await uploadImageToStorage(supabase, file, testId)
                           const copy = [...questions]
-                          copy[qi].image_url = url
+                          copy[qi].images = [...(copy[qi].images || []), url]
                           setQuestions(copy)
                         } catch (err: any) {
                           alert(err?.message ?? 'Upload ảnh thất bại')
@@ -722,21 +736,25 @@ export default function ManageTestPage() {
                       disabled={isPublished}
                       className="w-full min-h-[120px] px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
-                    {q.image_url && (
-                      <div className="relative inline-block">
-                        <img src={q.image_url} alt="Question" className="max-h-64 rounded border" />
-                        <button
-                          onClick={() => {
-                            const copy = [...questions]
-                            copy[qi].image_url = null
-                            setQuestions(copy)
-                          }}
-                          disabled={isPublished}
-                          className="absolute top-1 right-1 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs disabled:bg-gray-400 disabled:cursor-not-allowed"
-                          title="Xoá ảnh"
-                        >
-                          ✕
-                        </button>
+                    {q.images.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {q.images.map((img, imgIdx) => (
+                          <div key={imgIdx} className="relative inline-block">
+                            <img src={img} alt="Question" className="max-h-64 rounded border" />
+                            <button
+                              onClick={() => {
+                                const copy = [...questions]
+                                copy[qi].images = copy[qi].images.filter((_, i) => i !== imgIdx)
+                                setQuestions(copy)
+                              }}
+                              disabled={isPublished}
+                              className="absolute top-1 right-1 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs disabled:bg-gray-400 disabled:cursor-not-allowed hover:bg-red-600"
+                              title="Xoá ảnh"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -780,7 +798,8 @@ export default function ManageTestPage() {
                                 try {
                                   const url = await uploadImageToStorage(supabase, file, testId)
                                   const copy = [...questions]
-                                  copy[qi].options[oi].image_url = url
+                                  const opts = copy[qi].options
+                                  opts[oi].images = [...(opts[oi].images || []), url]
                                   setQuestions(copy)
                                 } catch (err: any) {
                                   alert(err?.message ?? 'Upload ảnh thất bại')
@@ -789,21 +808,25 @@ export default function ManageTestPage() {
                               disabled={isPublished}
                               className="w-full h-10 px-3 border border-gray-300 rounded-lg bg-white text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
                             />
-                            {o.image_url && (
-                              <div className="relative inline-block">
-                                <img src={o.image_url} alt="Answer" className="max-h-32 rounded border" />
-                                <button
-                                  onClick={() => {
-                                    const copy = [...questions]
-                                    copy[qi].options[oi].image_url = null
-                                    setQuestions(copy)
-                                  }}
-                                  disabled={isPublished}
-                                  className="absolute top-1 right-1 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs disabled:bg-gray-400 disabled:cursor-not-allowed"
-                                  title="Xoá ảnh"
-                                >
-                                  ✕
-                                </button>
+                            {o.images && o.images.length > 0 && (
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {o.images.map((img, imgIdx) => (
+                                  <div key={imgIdx} className="relative inline-block">
+                                    <img src={img} alt="Answer" className="max-h-32 rounded border" />
+                                    <button
+                                      onClick={() => {
+                                        const copy = [...questions]
+                                        copy[qi].options[oi].images = copy[qi].options[oi].images.filter((_, i) => i !== imgIdx)
+                                        setQuestions(copy)
+                                      }}
+                                      disabled={isPublished}
+                                      className="absolute top-1 right-1 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs disabled:bg-gray-400 disabled:cursor-not-allowed hover:bg-red-600"
+                                      title="Xoá ảnh"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ))}
                               </div>
                             )}
                           </div>
@@ -837,6 +860,7 @@ export default function ManageTestPage() {
                             id: nextChar,
                             text: '',
                             isCorrect: false,
+                            images: []
                           })
                           setQuestions(copy)
                         }}

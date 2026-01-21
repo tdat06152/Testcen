@@ -10,13 +10,26 @@ type Answer = {
   id: string
   content: string
   is_correct: boolean
+  images: string[]
 }
 
 type Question = {
   id: string
   content: string
   type: QuestionType
+  images: string[]
   answers: Answer[]
+}
+
+function parseImages(val: string | null): string[] {
+  if (!val) return []
+  try {
+    if (val.trim().startsWith('[')) {
+      const parsed = JSON.parse(val)
+      if (Array.isArray(parsed)) return parsed.filter((x: any) => typeof x === 'string')
+    }
+  } catch (e) { }
+  return [val]
 }
 
 type Submission = {
@@ -201,7 +214,7 @@ export default function TakeTestPage() {
 
       const { data: qs, error: qErr } = await supabase
         .from('questions')
-        .select('id, content, type')
+        .select('id, content, type, image_url')
         .eq('test_id', testId)
         .order('id', { ascending: true })
 
@@ -217,7 +230,7 @@ export default function TakeTestPage() {
       if (qIds.length) {
         const { data: ans, error: aErr } = await supabase
           .from('answers')
-          .select('id, question_id, content, is_correct')
+          .select('id, question_id, content, is_correct, image_url')
           .in('question_id', qIds)
           .order('id', { ascending: true })
 
@@ -233,6 +246,7 @@ export default function TakeTestPage() {
             id: a.id,
             content: a.content ?? '',
             is_correct: !!a.is_correct,
+            images: parseImages(a.image_url),
           })
         }
       }
@@ -241,6 +255,7 @@ export default function TakeTestPage() {
         id: q.id,
         content: q.content ?? '',
         type: q.type as QuestionType,
+        images: parseImages(q.image_url),
         answers: q.type === 'essay' ? [] : ansByQ[q.id] ?? [],
       }))
 
@@ -737,6 +752,13 @@ export default function TakeTestPage() {
                   <div key={q.id} className="border rounded-xl p-6 space-y-4">
                     <div className="font-semibold">Câu {idx + 1}</div>
                     <div className="whitespace-pre-wrap">{q.content}</div>
+                    {q.images.length > 0 && (
+                      <div className="mt-4 flex flex-col gap-4">
+                        {q.images.map((img, i) => (
+                          <img key={i} src={img} alt="Illustration" className="max-h-96 rounded-lg border object-contain bg-gray-50" />
+                        ))}
+                      </div>
+                    )}
 
                     {q.type === 'essay' ? (
                       <textarea
@@ -759,7 +781,17 @@ export default function TakeTestPage() {
                                   else toggleMultiple(q.id, a.id)
                                 }}
                               />
-                              <span className="whitespace-pre-wrap">{a.content}</span>
+
+                              <div className="flex-1">
+                                <span className="whitespace-pre-wrap">{a.content}</span>
+                                {a.images.length > 0 && (
+                                  <div className="mt-2 flex flex-col gap-2">
+                                    {a.images.map((img, i) => (
+                                      <img key={i} src={img} alt="Answer Illustration" className="max-h-48 rounded border object-contain bg-gray-50" />
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             </label>
                           )
                         })}
