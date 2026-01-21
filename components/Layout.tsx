@@ -16,7 +16,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // ✅ Hide sidebar CHỈ ở đúng trang làm bài: /tests/[id]
   // - segments = ["tests", "<id>"]
   // - loại "manage"
-  const segments = pathname.split('/').filter(Boolean)
+  // Safe check for pathname (can be null during some prerender contexts)
+  const segments = pathname ? pathname.split('/').filter(Boolean) : []
   const hideSidebar =
     segments[0] === 'tests' && segments.length === 2 && segments[1] !== 'manage'
 

@@ -16,7 +16,7 @@ export default function ManageTests() {
   const [tests, setTests] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
-  const [issued, setIssued] = useState<Record<string, string[]>>({}) // testId -> 3 codes vừa cấp
+  const [issued, setIssued] = useState<Record<string, string[]>>({}) // testId -> 2 codes vừa cấp
 
   // Export State
   const [exportModal, setExportModal] = useState<{ id: string; title: string } | null>(null)
@@ -25,7 +25,7 @@ export default function ManageTests() {
 
   useEffect(() => {
     const fetchTests = async () => {
-      const { data, error } = await supabase.from('tests').select('*')
+      const { data, error } = await supabase.from('tests').select('*').order('created_at', { ascending: false })
       if (error) alert(error.message)
       setTests(data || [])
       setLoading(false)
@@ -61,7 +61,7 @@ export default function ManageTests() {
 
     setBusyId(test.id)
 
-    const codes = [randomCode(8), randomCode(8), randomCode(8)]
+    const codes = [randomCode(8), randomCode(8)]
     const payload = codes.map(code => ({
       test_id: test.id,
       code,
@@ -191,7 +191,7 @@ export default function ManageTests() {
 
                   {justIssued.length > 0 && (
                     <div className="mt-3 bg-gray-50 border border-gray-200 rounded-lg p-3">
-                      <div className="font-semibold text-[var(--primary)]">3 mã vừa cấp (dùng 1 lần)</div>
+                      <div className="font-semibold text-[var(--primary)]">2 mã vừa cấp (dùng 1 lần)</div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {justIssued.map((c: string) => (
                           <span key={c} className="font-mono px-3 py-1 rounded bg-white border border-gray-200 text-gray-800">
@@ -243,14 +243,14 @@ export default function ManageTests() {
                       {isBusy ? 'Đang...' : test.status === 'published' ? 'Ngưng' : 'Xuất bản'}
                     </button>
 
-                    {/* Cấp mã (3) — xanh */}
+                    {/* Cấp mã (2) — xanh */}
                     <button
                       onClick={() => issueCodes(test)}
                       disabled={isBusy || test.status !== 'published'}
                       className="px-3 py-1.5 rounded-md bg-[var(--secondary)] text-white hover:opacity-90 disabled:opacity-50"
                       title={test.status !== 'published' ? 'Xuất bản trước khi cấp mã' : ''}
                     >
-                      {isBusy ? 'Đang...' : 'Cấp mã (3)'}
+                      {isBusy ? 'Đang...' : 'Cấp mã (2)'}
                     </button>
 
                     {/* Xoá — đỏ */}
