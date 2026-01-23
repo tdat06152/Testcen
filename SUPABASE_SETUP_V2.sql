@@ -119,6 +119,30 @@ ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 -- 4. TẠO POLICIES (Quyền truy cập)
 -- ==============================================================================
 
+-- Xóa các policy cũ nếu đã tồn tại để tránh lỗi khi chạy lại script
+DO $$ 
+BEGIN
+    -- Admin policies
+    DROP POLICY IF EXISTS "Admin all tests" ON tests;
+    DROP POLICY IF EXISTS "Admin all questions" ON questions;
+    DROP POLICY IF EXISTS "Admin all answers" ON answers;
+    DROP POLICY IF EXISTS "Admin all access_codes" ON test_access_codes;
+    DROP POLICY IF EXISTS "Admin all submissions" ON test_submissions;
+    DROP POLICY IF EXISTS "Admin all sub_answers" ON test_submission_answers;
+    DROP POLICY IF EXISTS "Admin all profiles" ON profiles;
+
+    -- Public policies
+    DROP POLICY IF EXISTS "Public view tests" ON tests;
+    DROP POLICY IF EXISTS "Public view questions" ON questions;
+    DROP POLICY IF EXISTS "Public view answers" ON answers;
+    DROP POLICY IF EXISTS "Public view access codes" ON test_access_codes;
+    DROP POLICY IF EXISTS "Public update access codes" ON test_access_codes;
+    DROP POLICY IF EXISTS "Public insert submissions" ON test_submissions;
+    DROP POLICY IF EXISTS "Public view submissions" ON test_submissions;
+    DROP POLICY IF EXISTS "Public insert sub_answers" ON test_submission_answers;
+    DROP POLICY IF EXISTS "Public view sub_answers" ON test_submission_answers;
+END $$;
+
 -- 4.1. QUYỀN ADMIN (Authenticated Users)
 -- Admin được làm mọi thứ (ALL) với tất cả các bảng
 
