@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase/client'
 
 type TestRow = {
   id: string
@@ -42,6 +42,7 @@ export default function EditTestPage() {
   // ✅ Fix lỗi params Promise: dùng useParams() cho Client Component
   const params = useParams<{ id: string }>()
   const testId = params?.id
+  const supabase = createClient()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)

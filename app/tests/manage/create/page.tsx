@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase/client'
 
 type QuestionType = 'single' | 'multiple' | 'essay'
 
@@ -23,6 +23,7 @@ type Section = 'info' | 'questions'
 export default function CreateTestPage() {
   const [activeSection, setActiveSection] = useState<Section>('info')
   const [saving, setSaving] = useState(false)
+  const supabase = createClient()
 
   /* ===== SECTION 1 ===== */
   const [form, setForm] = useState({

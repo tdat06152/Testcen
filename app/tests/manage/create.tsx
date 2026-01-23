@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase/client'
 
 export default function CreateTestPage() {
   const router = useRouter()
+  const supabase = createClient()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [duration, setDuration] = useState(15)
@@ -35,29 +36,29 @@ export default function CreateTestPage() {
         <div>
           <label className="block font-medium">Title</label>
           <input type="text" value={title} onChange={e => setTitle(e.target.value)} required
-                 className="w-full border px-3 py-2 rounded"/>
+            className="w-full border px-3 py-2 rounded" />
         </div>
         <div>
           <label className="block font-medium">Description</label>
           <textarea value={description} onChange={e => setDescription(e.target.value)}
-                    className="w-full border px-3 py-2 rounded"/>
+            className="w-full border px-3 py-2 rounded" />
         </div>
         <div>
           <label className="block font-medium">Duration (minutes)</label>
           <input type="number" value={duration} min={1} onChange={e => setDuration(Number(e.target.value))}
-                 className="w-full border px-3 py-2 rounded"/>
+            className="w-full border px-3 py-2 rounded" />
         </div>
         <div>
           <label className="block font-medium">Pass Score</label>
           <input type="number" value={passScore} min={1} onChange={e => setPassScore(Number(e.target.value))}
-                 className="w-full border px-3 py-2 rounded"/>
+            className="w-full border px-3 py-2 rounded" />
         </div>
         <div className="flex items-center space-x-2">
-          <input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)}/>
+          <input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)} />
           <span>Active</span>
         </div>
         <button type="submit" disabled={loading}
-                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
           {loading ? 'Đang tạo...' : 'Tạo Test'}
         </button>
       </form>
