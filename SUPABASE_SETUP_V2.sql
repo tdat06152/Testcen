@@ -204,17 +204,27 @@ CREATE OR REPLACE TRIGGER on_auth_user_created
 
 
 -- ==============================================================================
--- 6. STORAGE BUCKETS
--- Hướng dẫn tạo bucket (Phải làm thủ công hoặc chạy script nếu có extension)
+-- 6. STORAGE POLICIES (Cấp quyền Upload ảnh)
 -- ==============================================================================
 
--- Vào menu Storage trên Supabase Dashboard:
--- 1. Tạo bucket mới tên: "question-images"
--- 2. Đặt là "Public" bucket.
--- 3. Tạo bucket mới tên: "test-assets" (nếu cần)
--- 4. Đặt là "Public" bucket.
+-- Cho phép mọi người xem ảnh (Public)
+CREATE POLICY "Public Access" 
+ON storage.objects FOR SELECT 
+USING ( bucket_id = 'question-images' );
 
--- Policy cho Storage (SQL tham khảo, thường set trên UI dễ hơn):
--- insert into storage.buckets (id, name, public) values ('question-images', 'question-images', true);
--- create policy "Public Access" on storage.objects for select using ( bucket_id = 'question-images' );
--- create policy "Auth Upload" on storage.objects for insert to authenticated with check ( bucket_id = 'question-images' );
+-- Cho phép Admin (đã đăng nhập) Upload ảnh
+CREATE POLICY "Admin Upload" 
+ON storage.objects FOR INSERT 
+TO authenticated 
+WITH CHECK ( bucket_id = 'question-images' );
+
+-- Cho phép Admin Cập nhật/Xóa ảnh
+CREATE POLICY "Admin Update" 
+ON storage.objects FOR UPDATE 
+TO authenticated 
+USING ( bucket_id = 'question-images' );
+
+CREATE POLICY "Admin Delete" 
+ON storage.objects FOR DELETE 
+TO authenticated 
+USING ( bucket_id = 'question-images' );
