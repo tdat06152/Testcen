@@ -43,7 +43,7 @@ function fromDatetimeLocal(value: string) {
 }
 
 /* Helpers for Images */
-const BUCKET = 'test-assets'
+const BUCKET = 'question-images'
 
 async function uploadImageToStorage(supabase: any, file: File, testId: string) {
   const ext = (file.name.split('.').pop() || 'png').toLowerCase()
