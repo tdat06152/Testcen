@@ -28,7 +28,7 @@ type Section = 'info' | 'questions'
 const toLetter = (i: number) => String.fromCharCode(65 + i)
 
 // ✅ đổi nếu bucket của mày tên khác
-const BUCKET = 'question-images'
+const BUCKET = 'test-assets'
 
 async function uploadImageToStorage(supabase: any, file: File, testId: string) {
   const ext = (file.name.split('.').pop() || 'png').toLowerCase()
