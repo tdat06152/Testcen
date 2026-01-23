@@ -92,6 +92,14 @@ CREATE TABLE IF NOT EXISTS test_submission_answers (
   is_correct BOOLEAN
 );
 
+-- Bảng: profiles (Quản lý role Admin/User)
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT,
+  role TEXT DEFAULT 'admin', -- Mặc định là admin để bạn có quyền ngay khi tạo account
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
 
 -- ==============================================================================
 -- 3. ENABLE RLS (Row Level Security)
@@ -104,6 +112,7 @@ ALTER TABLE answers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE test_access_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE test_submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE test_submission_answers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
 
 -- ==============================================================================
@@ -119,6 +128,7 @@ CREATE POLICY "Admin all answers" ON answers FOR ALL TO authenticated USING (tru
 CREATE POLICY "Admin all access_codes" ON test_access_codes FOR ALL TO authenticated USING (true);
 CREATE POLICY "Admin all submissions" ON test_submissions FOR ALL TO authenticated USING (true);
 CREATE POLICY "Admin all sub_answers" ON test_submission_answers FOR ALL TO authenticated USING (true);
+CREATE POLICY "Admin all profiles" ON profiles FOR ALL TO authenticated USING (true);
 
 
 -- 4.2. QUYỀN PUBLIC / ANONYMOUS (Người làm bài)
@@ -152,7 +162,25 @@ CREATE POLICY "Public view sub_answers" ON test_submission_answers FOR SELECT TO
 
 
 -- ==============================================================================
--- 5. STORAGE BUCKETS
+-- 5. AUTH TRIGGER (Tự động tạo profile khi đăng ký)
+-- ==============================================================================
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, role)
+  VALUES (new.id, new.email, 'admin'); -- Để mặc định admin cho tài khoản đầu tiên bạn tạo
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+
+-- ==============================================================================
+-- 6. STORAGE BUCKETS
 -- Hướng dẫn tạo bucket (Phải làm thủ công hoặc chạy script nếu có extension)
 -- ==============================================================================
 
