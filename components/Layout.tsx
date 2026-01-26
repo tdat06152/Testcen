@@ -84,10 +84,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // ✅ Trang làm bài: không sidebar
   if (hideSidebar) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+      <div className="min-h-screen bg-gray-900 text-white flex flex-col relative">
         <div className="flex-1">{children}</div>
-        <div className="py-2 text-center opacity-30 hover:opacity-100 transition-opacity">
-          <p className="text-[10px] tracking-widest uppercase">Sản phẩm bởi ĐạtTT team LnD</p>
+        {/* Author attribution for test page: fixed at bottom, grey text on dark background */}
+        <div className="fixed bottom-4 left-0 right-0 pointer-events-none flex justify-center">
+          <div className="bg-black/20 backdrop-blur-sm px-4 py-1.5 rounded-full border border-white/5 opacity-50 hover:opacity-100 transition-opacity pointer-events-auto">
+            <p className="text-[11px] font-medium tracking-wider text-gray-400">
+              Sản phẩm bởi <span className="text-gray-300">ĐạtTT team LnD</span>
+            </p>
+          </div>
         </div>
       </div>
     )
@@ -133,14 +138,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
 
-        <div className="mt-auto pt-6 border-t border-white/5 opacity-20 hover:opacity-100 transition-opacity">
-          <p className="text-[9px] text-center tracking-widest uppercase">
-            Sản phẩm bởi ĐạtTT team LnD
+        <div className="mt-auto pt-6 border-t border-white/10 opacity-50 hover:opacity-100 transition-opacity">
+          <p className="text-[11px] text-center tracking-wide font-medium text-slate-400">
+            Sản phẩm bởi <span className="text-slate-200">ĐạtTT team LnD</span>
           </p>
         </div>
       </aside>
 
-      <main className="flex-1 p-8 overflow-auto">{children}</main>
+      <main className="flex-1 p-8 overflow-auto relative bg-gray-50/30">
+        {children}
+        {/* Footer info for main content area if needed, but sidebar is already visible */}
+      </main>
     </div>
   )
 }
