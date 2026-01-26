@@ -86,11 +86,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex flex-col relative">
         <div className="flex-1">{children}</div>
-        {/* Author attribution for test page: fixed at bottom right, grey text */}
+        {/* Author attribution for test page: fixed at bottom right, CLEAR DARK GREY text on white-ish pill */}
         <div className="fixed bottom-4 right-4 z-[9998] pointer-events-none">
-          <div className="bg-white/5 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 opacity-60 hover:opacity-100 transition-opacity pointer-events-auto">
-            <p className="text-[10px] font-medium tracking-wide text-gray-400">
-              Sản phẩm bởi <span className="text-gray-200">ĐạtTT team LnD</span>
+          <div className="bg-white/80 backdrop-blur-md px-4 py-2 rounded-full border border-gray-200 shadow-lg opacity-90 hover:opacity-100 transition-opacity pointer-events-auto">
+            <p className="text-[12px] font-bold tracking-wide text-slate-700">
+              Sản phẩm bởi <span className="text-orange-600">ĐạtTT team LnD</span>
             </p>
           </div>
         </div>
@@ -138,9 +138,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
 
-        <div className="mt-auto pt-6 border-t border-white/10 opacity-50 hover:opacity-100 transition-opacity">
-          <p className="text-[11px] text-center tracking-wide font-medium text-slate-400">
-            Sản phẩm bởi <span className="text-slate-200">ĐạtTT team LnD</span>
+        <div className="mt-auto pt-6 border-t border-white/20 opacity-80 hover:opacity-100 transition-opacity">
+          <p className="text-[12px] text-center tracking-wide font-bold text-slate-300">
+            Sản phẩm bởi <span className="text-orange-400">ĐạtTT team LnD</span>
           </p>
         </div>
       </aside>
