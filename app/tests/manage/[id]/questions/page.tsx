@@ -276,40 +276,13 @@ export default function ManageTestQuestionsPage() {
       <div className="max-w-6xl mx-auto px-8 py-10 space-y-8 pb-32">
         <h1 className="text-3xl font-bold">Quản lý câu hỏi</h1>
 
-        <div className="flex justify-end">
-          <button
-            onClick={saveAll}
-            disabled={saving || loading}
-            className="px-6 py-2 rounded-lg bg-[#ff5200] text-white font-semibold disabled:opacity-50"
-          >
-            {saving ? 'Đang lưu...' : 'Lưu'}
-          </button>
-        </div>
+
 
         {loading ? (
           <div>Đang tải câu hỏi...</div>
         ) : (
           <div className="border border-gray-200 rounded-xl p-8 space-y-8">
-            <button
-              onClick={() =>
-                setQuestions(prev => [
-                  ...prev,
-                  {
-                    id: `new-${Date.now()}`,
-                    content: '',
-                    type: 'single',
-                    image_url: null, // ✅ NEW
-                    options: [
-                      { id: 'A', text: '', isCorrect: false, image_url: null },
-                      { id: 'B', text: '', isCorrect: false, image_url: null },
-                    ],
-                  },
-                ])
-              }
-              className="px-5 py-2 rounded-lg bg-[#00a0fa] text-white font-semibold"
-            >
-              + Thêm câu hỏi
-            </button>
+
 
             {questions.length === 0 ? (
               <div className="text-gray-500">Test này chưa có câu hỏi.</div>
@@ -506,6 +479,38 @@ export default function ManageTestQuestionsPage() {
             )}
           </div>
         )}
+      </div>
+
+      {/* ===== FIXED SAVE BAR ===== */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-8 py-4 flex justify-end gap-4">
+        <button
+          onClick={() =>
+            setQuestions(prev => [
+              ...prev,
+              {
+                id: `new-${Date.now()}`,
+                content: '',
+                type: 'single',
+                image_url: null,
+                options: [
+                  { id: 'A', text: '', isCorrect: false, image_url: null },
+                  { id: 'B', text: '', isCorrect: false, image_url: null },
+                ],
+              },
+            ])
+          }
+          disabled={loading || saving}
+          className="px-6 py-3 rounded-xl bg-[#00a0fa] text-white font-bold text-lg disabled:opacity-50 active:scale-95 transition-transform"
+        >
+          + Thêm câu hỏi
+        </button>
+        <button
+          onClick={saveAll}
+          disabled={saving || loading}
+          className="px-8 py-3 rounded-xl bg-[#ff5200] text-white font-bold text-lg disabled:opacity-50 active:scale-95 transition-transform"
+        >
+          {saving ? 'Đang lưu...' : 'Lưu câu hỏi'}
+        </button>
       </div>
     </div>
   )

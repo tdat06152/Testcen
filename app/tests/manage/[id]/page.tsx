@@ -728,28 +728,7 @@ export default function ManageTestPage() {
         {/* ================= SECTION 2: QUESTIONS ================= */}
         {activeSection === 'questions' && (
           <div className="border border-gray-200 rounded-xl p-8 space-y-8">
-            <button
-              onClick={() =>
-                setQuestions(prev => [
-                  ...prev,
-                  {
-                    id: `new-${Date.now()}`,
-                    content: '',
-                    type: 'single',
-                    image_url: null,
-                    images: [],
-                    options: [
-                      { id: 'A', text: '', isCorrect: false, images: [] },
-                      { id: 'B', text: '', isCorrect: false, images: [] },
-                    ],
-                  },
-                ])
-              }
-              disabled={isPublished}
-              className="px-5 py-2 rounded-lg bg-[#00a0fa] text-white font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              + Thêm câu hỏi
-            </button>
+
 
             {questions.map((q, qi) => (
               <div key={q.id} className="border border-gray-200 rounded-xl">
@@ -965,11 +944,35 @@ export default function ManageTestPage() {
       </div>
 
       {/* ===== FIXED SAVE BAR ===== */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-8 py-4 flex justify-end">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-8 py-4 flex justify-end gap-4">
+        {activeSection === 'questions' && (
+          <button
+            onClick={() =>
+              setQuestions(prev => [
+                ...prev,
+                {
+                  id: `new-${Date.now()}`,
+                  content: '',
+                  type: 'single',
+                  image_url: null,
+                  images: [],
+                  options: [
+                    { id: 'A', text: '', isCorrect: false, images: [] },
+                    { id: 'B', text: '', isCorrect: false, images: [] },
+                  ],
+                },
+              ])
+            }
+            disabled={isPublished}
+            className="px-6 py-3 rounded-xl bg-[#00a0fa] text-white font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-transform"
+          >
+            + Thêm câu hỏi
+          </button>
+        )}
         <button
           onClick={saveAll}
           disabled={saving || isPublished}
-          className="px-8 py-3 rounded-xl bg-[#ff5200] text-white font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-8 py-3 rounded-xl bg-[#ff5200] text-white font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-transform"
           title={isPublished ? 'Ngừng xuất bản trước khi lưu thay đổi' : ''}
         >
           {saving ? 'Đang lưu...' : isPublished ? '🔒 Đã khóa' : 'Lưu thay đổi'}
