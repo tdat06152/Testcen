@@ -6,18 +6,30 @@ import { createClient } from '@/utils/supabase/client'
 // --- Helpers ---
 const BUCKET = 'test-assets'
 
+function uuidv4() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
+  })
+}
+
 async function uploadImageToStorage(supabase: any, file: File, testId: string) {
   const ext = (file.name.split('.').pop() || 'png').toLowerCase()
   const path = `${testId}/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`
 
-  const { error } = await supabase.storage
+  console.log('Uploading to:', BUCKET, path)
+
+  const { data, error } = await supabase.storage
     .from(BUCKET)
     .upload(path, file, { upsert: true, contentType: file.type })
 
-  if (error) throw error
+  if (error) {
+    console.error('Upload Error Details:', error)
+    throw error
+  }
 
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path)
-  return data.publicUrl as string
+  const { data: publicUrlData } = supabase.storage.from(BUCKET).getPublicUrl(path)
+  return publicUrlData.publicUrl as string
 }
 
 function getPastedImageFile(e: ClipboardEvent) {
@@ -49,7 +61,8 @@ type Question = {
 type Section = 'info' | 'questions'
 
 export default function CreateTestPage() {
-  const [testId] = useState(() => crypto.randomUUID())
+  // Use custom UUID generator to ensure it works on all browsers/contexts
+  const [testId] = useState(() => uuidv4())
   const [activeSection, setActiveSection] = useState<Section>('info')
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
