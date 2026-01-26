@@ -98,6 +98,15 @@ export default function CreateTestPage() {
 
     setSaving(true)
 
+    // 🔍 DEBUG AUTH: Check if user is actually logged in
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      alert('⚠️ Bạn chưa đăng nhập hoặc phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
+      setSaving(false)
+      return
+    }
+    console.log('✅ Current User ID:', user.id)
+
     // IMPORTANT: schema của bạn là `title`, `duration_minutes`, `time_limit`
     const insertTestPayload = {
       id: testId, // ✅ Use generated ID
@@ -148,7 +157,8 @@ export default function CreateTestPage() {
         .single()
 
       if (qError) {
-        alert(qError.message)
+        console.error('❌ Error inserting question:', qError)
+        alert(`Lỗi lưu câu hỏi số ${i + 1}: ${qError.message}\n(Code: ${qError.code}, Details: ${qError.details})`)
         setSaving(false)
         return
       }
@@ -164,7 +174,8 @@ export default function CreateTestPage() {
         const { error: aError } = await supabase.from('answers').insert(payload)
 
         if (aError) {
-          alert(aError.message)
+          console.error('❌ Error inserting answers:', aError)
+          alert(`Lỗi lưu đáp án cho câu ${i + 1}: ${aError.message}`)
           setSaving(false)
           return
         }
@@ -172,7 +183,7 @@ export default function CreateTestPage() {
     }
 
     setSaving(false)
-    alert('✅ Đã lưu bài kiểm tra')
+    alert('✅ Đã lưu bài kiểm tra thành công!')
   }
 
   return (
