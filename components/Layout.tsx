@@ -83,50 +83,64 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   // ✅ Trang làm bài: không sidebar
   if (hideSidebar) {
-    return <div className="min-h-screen bg-gray-900 text-white">{children}</div>
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+        <div className="flex-1">{children}</div>
+        <div className="py-2 text-center opacity-30 hover:opacity-100 transition-opacity">
+          <p className="text-[10px] tracking-widest uppercase">Sản phẩm bởi ĐạtTT team LnD</p>
+        </div>
+      </div>
+    )
   }
 
   // ✅ Các trang khác (reports, manage, questions...) vẫn có sidebar
   return (
     <div className="min-h-screen flex bg-white text-gray-900">
-      <aside className="w-64 bg-slate-900 text-white p-6">
-        <h1 className="text-2xl font-bold mb-8 text-[var(--primary)]">Test Center</h1>
+      <aside className="w-64 bg-slate-900 text-white p-6 flex flex-col">
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold mb-8 text-[var(--primary)]">Test Center</h1>
 
-        <nav className="space-y-2">
-          {isAdmin && (
-            <>
-              <Link
-                href="/tests/manage"
-                className="block px-3 py-2 rounded-md text-white/90 hover:text-white hover:bg-white/10 transition"
-              >
-                Quản lý bài test
-              </Link>
+          <nav className="space-y-2">
+            {isAdmin && (
+              <>
+                <Link
+                  href="/tests/manage"
+                  className="block px-3 py-2 rounded-md text-white/90 font-medium hover:text-white hover:bg-white/10 transition"
+                >
+                  Quản lý bài test
+                </Link>
 
-              <Link
-                href="/reports"
-                className="block px-3 py-2 rounded-md text-white/90 hover:text-white hover:bg-white/10 transition"
-              >
-                Báo cáo
-              </Link>
-            </>
-          )}
+                <Link
+                  href="/reports"
+                  className="block px-3 py-2 rounded-md text-white/90 font-medium hover:text-white hover:bg-white/10 transition"
+                >
+                  Báo cáo
+                </Link>
+              </>
+            )}
 
-          <div className="my-4 border-t border-white/10" />
+            <div className="my-4 border-t border-white/10" />
 
-          <button
-            onClick={async () => {
-              await supabase.auth.signOut()
-              router.push('/login')
-            }}
-            className="block w-full text-left px-3 py-2 rounded-md text-white/70 hover:text-white hover:bg-white/10 transition"
-          >
-            Đăng xuất
-          </button>
-        </nav>
+            <button
+              onClick={async () => {
+                await supabase.auth.signOut()
+                router.push('/login')
+              }}
+              className="block w-full text-left px-3 py-2 rounded-md text-white/70 hover:text-white hover:bg-white/10 transition"
+            >
+              Đăng xuất
+            </button>
+          </nav>
+        </div>
+
+        <div className="mt-auto pt-6 border-t border-white/5 opacity-20 hover:opacity-100 transition-opacity">
+          <p className="text-[9px] text-center tracking-widest uppercase">
+            Sản phẩm bởi ĐạtTT team LnD
+          </p>
+        </div>
       </aside>
 
-
-      <main className="flex-1 p-8">{children}</main>
+      <main className="flex-1 p-8 overflow-auto">{children}</main>
     </div>
   )
 }
