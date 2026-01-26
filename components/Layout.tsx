@@ -86,11 +86,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex flex-col relative">
         <div className="flex-1">{children}</div>
-        {/* Author attribution for test page: fixed at bottom, grey text on dark background */}
-        <div className="fixed bottom-4 left-0 right-0 pointer-events-none flex justify-center">
-          <div className="bg-black/20 backdrop-blur-sm px-4 py-1.5 rounded-full border border-white/5 opacity-50 hover:opacity-100 transition-opacity pointer-events-auto">
-            <p className="text-[11px] font-medium tracking-wider text-gray-400">
-              Sản phẩm bởi <span className="text-gray-300">ĐạtTT team LnD</span>
+        {/* Author attribution for test page: fixed at bottom right, grey text */}
+        <div className="fixed bottom-4 right-4 z-[9998] pointer-events-none">
+          <div className="bg-white/5 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 opacity-60 hover:opacity-100 transition-opacity pointer-events-auto">
+            <p className="text-[10px] font-medium tracking-wide text-gray-400">
+              Sản phẩm bởi <span className="text-gray-200">ĐạtTT team LnD</span>
             </p>
           </div>
         </div>
