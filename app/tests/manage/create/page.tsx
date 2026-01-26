@@ -1,14 +1,41 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ClipboardEvent } from 'react'
 import { createClient } from '@/utils/supabase/client'
 
+// --- Helpers ---
+const BUCKET = 'test-assets'
+
+async function uploadImageToStorage(supabase: any, file: File, testId: string) {
+  const ext = (file.name.split('.').pop() || 'png').toLowerCase()
+  const path = `${testId}/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`
+
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, file, { upsert: true, contentType: file.type })
+
+  if (error) throw error
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path)
+  return data.publicUrl as string
+}
+
+function getPastedImageFile(e: ClipboardEvent) {
+  const items = e.clipboardData?.items
+  if (!items) return null
+  const imgItem = Array.from(items).find(it => it.type.startsWith('image/'))
+  if (!imgItem) return null
+  return imgItem.getAsFile()
+}
+
+// --- Types ---
 type QuestionType = 'single' | 'multiple' | 'essay'
 
 type AnswerOption = {
   id: string
   text: string
   isCorrect: boolean
+  image_url?: string | null
 }
 
 type Question = {
@@ -16,11 +43,13 @@ type Question = {
   content: string
   type: QuestionType
   options: AnswerOption[]
+  image_url?: string | null
 }
 
 type Section = 'info' | 'questions'
 
 export default function CreateTestPage() {
+  const [testId] = useState(() => crypto.randomUUID())
   const [activeSection, setActiveSection] = useState<Section>('info')
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
@@ -58,17 +87,12 @@ export default function CreateTestPage() {
 
     // IMPORTANT: schema của bạn là `title`, `duration_minutes`, `time_limit`
     const insertTestPayload = {
-      title: form.name.trim(), // ✅ name -> title
+      id: testId, // ✅ Use generated ID
+      title: form.name.trim(),
       description: form.description?.trim() || null,
       pass_score: Number(form.passScore),
-
-      // ✅ time_limit = true nghĩa là CÓ giới hạn thời gian
-      // unlimitedTime = true nghĩa là KHÔNG giới hạn -> đảo lại
       time_limit: form.unlimitedTime ? 0 : 1,
-
-      // ✅ integer hoặc null (tuyệt đối không boolean)
       duration_minutes: form.unlimitedTime ? 0 : Number(form.timeMinutes),
-
       valid_from: form.validFrom || null,
       valid_to: form.validTo || null,
       success_message: form.successMessage?.trim() || null,
@@ -92,10 +116,9 @@ export default function CreateTestPage() {
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i]
 
-      // xác định đáp án đúng (để thỏa NOT NULL correct_answer)
       const correctAnswer =
         q.type === 'essay'
-          ? '' // tự luận không có đáp án
+          ? ''
           : (q.options.find(o => o.isCorrect)?.id ?? '')
 
       const { data: question, error: qError } = await supabase
@@ -104,17 +127,12 @@ export default function CreateTestPage() {
           test_id: test.id,
           content: q.content,
           type: q.type,
-
-          // 👇 BẮT BUỘC vì DB đang NOT NULL
           correct_answer: correctAnswer,
-
-          // 👇 nếu DB còn cột options NOT NULL
           options: q.type === 'essay' ? [] : q.options.map(o => o.id),
+          image_url: q.image_url ?? null, // ✅ Save image
         })
         .select()
         .single()
-
-
 
       if (qError) {
         alert(qError.message)
@@ -127,6 +145,7 @@ export default function CreateTestPage() {
           question_id: question.id,
           content: o.text,
           is_correct: o.isCorrect,
+          image_url: o.image_url ?? null, // ✅ Save image
         }))
 
         const { error: aError } = await supabase.from('answers').insert(payload)
@@ -316,9 +335,10 @@ export default function CreateTestPage() {
                     id: Date.now().toString(),
                     content: '',
                     type: 'single',
+                    image_url: null,
                     options: [
-                      { id: 'A', text: '', isCorrect: false },
-                      { id: 'B', text: '', isCorrect: false },
+                      { id: 'A', text: '', isCorrect: false, image_url: null },
+                      { id: 'B', text: '', isCorrect: false, image_url: null },
                     ],
                   },
                 ])
@@ -362,60 +382,122 @@ export default function CreateTestPage() {
 
                 <div className="p-6 space-y-6">
                   <textarea
-                    placeholder="Nội dung câu hỏi"
+                    placeholder="Nội dung câu hỏi (có thể paste ảnh)"
                     value={q.content}
                     onChange={e => {
                       const copy = [...questions]
                       copy[qi].content = e.target.value
                       setQuestions(copy)
                     }}
+                    onPaste={async e => {
+                      const file = getPastedImageFile(e)
+                      if (!file) return
+                      e.preventDefault()
+                      try {
+                        const url = await uploadImageToStorage(supabase, file, testId)
+                        const copy = [...questions]
+                        copy[qi].image_url = url
+                        setQuestions(copy)
+                      } catch (err: any) {
+                        alert(err?.message ?? 'Upload ảnh thất bại')
+                      }
+                    }}
                     className="w-full min-h-[120px] px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
                   />
+
+                  {q.image_url && (
+                    <div className="space-y-2">
+                      <img src={q.image_url} alt="question" className="max-h-72 rounded-lg border border-gray-200" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const copy = [...questions]
+                          copy[qi].image_url = null
+                          setQuestions(copy)
+                        }}
+                        className="text-sm text-red-600 underline"
+                      >
+                        Xoá ảnh câu hỏi
+                      </button>
+                    </div>
+                  )}
 
                   {q.type !== 'essay' && (
                     <div className="space-y-4">
                       {q.options.map((o, oi) => (
-                        <div key={o.id} className="flex items-center gap-3">
-                          <input
-                            type={q.type === 'single' ? 'radio' : 'checkbox'}
-                            checked={o.isCorrect}
-                            onChange={() => {
-                              const copy = [...questions]
-                              if (q.type === 'single') {
-                                copy[qi].options.forEach(x => (x.isCorrect = false))
-                              }
-                              copy[qi].options[oi].isCorrect = !o.isCorrect
-                              setQuestions(copy)
-                            }}
-                          />
-
-                          <input
-                            placeholder={`Đáp án ${o.id}`}
-                            value={o.text}
-                            onChange={e => {
-                              const copy = [...questions]
-                              copy[qi].options[oi].text = e.target.value
-                              setQuestions(copy)
-                            }}
-                            className="flex-1 h-10 px-3 border border-gray-300 rounded-lg bg-white text-gray-900"
-                          />
-
-                          {q.options.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => {
+                        <div key={o.id} className="space-y-2">
+                          <div className="flex items-center gap-3">
+                            <input
+                              type={q.type === 'single' ? 'radio' : 'checkbox'}
+                              checked={o.isCorrect}
+                              onChange={() => {
                                 const copy = [...questions]
-                                copy[qi].options.splice(oi, 1)
-                                // Re-index IDs
-                                copy[qi].options.forEach((opt, idx) => {
-                                  opt.id = String.fromCharCode(65 + idx)
-                                })
+                                if (q.type === 'single') {
+                                  copy[qi].options.forEach(x => (x.isCorrect = false))
+                                }
+                                copy[qi].options[oi].isCorrect = !o.isCorrect
                                 setQuestions(copy)
                               }}
-                              className="text-red-500 text-sm font-medium hover:text-red-700 hover:underline"
-                            >
-                              Xóa
-                            </button>
+                            />
+
+                            <input
+                              placeholder={`Đáp án ${o.id} (có thể paste ảnh)`}
+                              value={o.text}
+                              onChange={e => {
+                                const copy = [...questions]
+                                copy[qi].options[oi].text = e.target.value
+                                setQuestions(copy)
+                              }}
+                              onPaste={async e => {
+                                const file = getPastedImageFile(e)
+                                if (!file) return
+                                e.preventDefault()
+                                try {
+                                  const url = await uploadImageToStorage(supabase, file, testId)
+                                  const copy = [...questions]
+                                  copy[qi].options[oi].image_url = url
+                                  setQuestions(copy)
+                                } catch (err: any) {
+                                  alert(err?.message ?? 'Upload ảnh thất bại')
+                                }
+                              }}
+                              className="flex-1 h-10 px-3 border border-gray-300 rounded-lg bg-white text-gray-900"
+                            />
+
+                            {q.options.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const copy = [...questions]
+                                  copy[qi].options.splice(oi, 1)
+                                  // Re-index IDs
+                                  copy[qi].options.forEach((opt, idx) => {
+                                    opt.id = String.fromCharCode(65 + idx)
+                                  })
+                                  setQuestions(copy)
+                                }}
+                                className="text-red-500 text-sm font-medium hover:text-red-700 hover:underline"
+                              >
+                                Xóa
+                              </button>
+                            )}
+                          </div>
+
+                          {o.image_url && (
+                            <div className="pl-8 space-y-2">
+                              <img src={o.image_url} alt="answer" className="max-h-48 rounded-lg border border-gray-200" />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const copy = [...questions]
+                                  copy[qi].options[oi].image_url = null
+                                  setQuestions(copy)
+                                }}
+                                className="text-sm text-red-600 underline"
+                              >
+                                Xoá ảnh đáp án
+                              </button>
+                            </div>
                           )}
                         </div>
                       ))}
@@ -428,6 +510,7 @@ export default function CreateTestPage() {
                             id: nextChar,
                             text: '',
                             isCorrect: false,
+                            image_url: null,
                           })
                           setQuestions(copy)
                         }}
