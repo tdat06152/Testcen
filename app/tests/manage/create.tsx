@@ -18,6 +18,7 @@ export default function CreateTestPage() {
     e.preventDefault()
     setLoading(true)
     const { error } = await supabase.from('tests').insert({
+      id: crypto.randomUUID(),
       title,
       description,
       duration_minutes: duration,
