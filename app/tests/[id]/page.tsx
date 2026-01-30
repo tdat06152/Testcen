@@ -75,6 +75,13 @@ export default function TakeTestPage() {
   const [submitting, setSubmitting] = useState(false)
   const [submission, setSubmission] = useState<Submission | null>(null)
 
+  // ✅ New: Non-blocking notifications
+  const [msg, setMsg] = useState<{ text: string; type: 'error' | 'info' } | null>(null)
+  const showMsg = (text: string, type: 'error' | 'info' = 'info') => {
+    setMsg({ text, type })
+    setTimeout(() => setMsg(null), 4000)
+  }
+
   // ✅ Timer state
   const [timeLeft, setTimeLeft] = useState<number | null>(null)
 
@@ -115,7 +122,7 @@ export default function TakeTestPage() {
       const { data: t, error: tErr } = await supabase.from('tests').select('*').eq('id', testId).single()
 
       if (tErr) {
-        alert(tErr.message)
+        showMsg(tErr.message, 'error')
         setLoading(false)
         return
       }
@@ -225,7 +232,7 @@ export default function TakeTestPage() {
         .order('id', { ascending: true })
 
       if (qErr) {
-        alert(qErr.message)
+        showMsg(qErr.message, 'error')
         setQLoading(false)
         return
       }
@@ -241,7 +248,7 @@ export default function TakeTestPage() {
           .order('id', { ascending: true })
 
         if (aErr) {
-          alert(aErr.message)
+          showMsg(aErr.message, 'error')
           setQLoading(false)
           return
         }
@@ -280,7 +287,7 @@ export default function TakeTestPage() {
   const verifyAndConsume = async () => {
     if (!testId) return
     const code = codeInput.trim().toUpperCase()
-    if (!code) return alert('Nhập mã')
+    if (!code) return showMsg('Vui lòng nhập mã truy cập', 'error')
 
     setVerifying(true)
 
@@ -294,7 +301,7 @@ export default function TakeTestPage() {
 
     if (error) {
       setVerifying(false)
-      return alert('Mã không đúng hoặc đã được dùng.')
+      return showMsg('Mã không đúng hoặc đã được dùng.', 'error')
     }
 
     const { error: uErr } = await supabase
@@ -305,7 +312,7 @@ export default function TakeTestPage() {
 
     if (uErr) {
       setVerifying(false)
-      return alert(uErr.message)
+      return showMsg(uErr.message, 'error')
     }
 
     localStorage.setItem(storageKey(testId), row.id)
@@ -368,8 +375,12 @@ export default function TakeTestPage() {
   const scrollToQuestion = (idx: number) => {
     const el = document.getElementById(`question-${idx}`)
     if (el) {
-      // Offset for sticky header if any, though here we just scroll to center
       el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      // Thêm hiệu ứng nháy để thu hút sự chú ý
+      el.classList.add('ring-4', 'ring-blue-400', 'ring-offset-4', 'transition-all', 'duration-500')
+      setTimeout(() => {
+        el.classList.remove('ring-4', 'ring-blue-400', 'ring-offset-4')
+      }, 2000)
     }
   }
 
@@ -394,7 +405,7 @@ export default function TakeTestPage() {
     // ✅ Kiểm tra điền đầy đủ
     const unansweredIdx = questions.findIndex(q => !isAnswered(q.id))
     if (unansweredIdx !== -1) {
-      alert(`Vui lòng hoàn thành tất cả các câu hỏi. Câu ${unansweredIdx + 1} chưa được trả lời.`)
+      showMsg(`Câu ${unansweredIdx + 1} chưa được trả lời.`, 'error')
       scrollToQuestion(unansweredIdx)
       return
     }
@@ -447,7 +458,7 @@ export default function TakeTestPage() {
 
     if (insErr) {
       console.warn(insErr)
-      alert(insErr.message)
+      showMsg(insErr.message, 'error')
       setSubmitting(false)
       return
     }
@@ -806,7 +817,7 @@ export default function TakeTestPage() {
               <button
                 onClick={() => {
                   const name = candidateName.trim()
-                  if (!name) return alert('Vui lòng nhập họ tên')
+                  if (!name) return showMsg('Vui lòng nhập họ tên', 'error')
 
                   // lưu tên để refresh không mất
                   localStorage.setItem(nameKey(testId!, accessCodeId!), name)
@@ -1006,6 +1017,17 @@ export default function TakeTestPage() {
           </div>
         )}
       </div>
+
+      {/* ✅ FLOATING NOTIFICATION (Thay cho alert) */}
+      {msg && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[10000] animate-in slide-in-from-top-4 duration-300">
+          <div className={`px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 font-bold text-white ${msg.type === 'error' ? 'bg-red-600' : 'bg-blue-600'
+            }`}>
+            {msg.type === 'error' ? '❌' : 'ℹ️'}
+            {msg.text}
+          </div>
+        </div>
+      )}
 
       {/* 🔴 WARNING MODAL (Thay cho alert để không bị exit fullscreen) */}
       {violationReason && (() => {
