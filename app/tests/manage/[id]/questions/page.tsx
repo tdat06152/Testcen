@@ -65,6 +65,39 @@ export default function ManageTestQuestionsPage() {
 
   const [questions, setQuestions] = useState<Question[]>([])
 
+  // Bank state
+  const [showBankModal, setShowBankModal] = useState(false)
+  const [bankQuestions, setBankQuestions] = useState<any[]>([])
+  const [bankCategories, setBankCategories] = useState<any[]>([])
+  const [loadingBank, setLoadingBank] = useState(false)
+  const [selectedBankCat, setSelectedBankCat] = useState<string | 'all'>('all')
+
+  const openBank = async () => {
+    setShowBankModal(true)
+    setLoadingBank(true)
+    const { data: cats } = await supabase.from('question_bank_categories').select('*').order('name')
+    const { data: qs } = await supabase.from('question_bank').select('*, question_bank_answers(*)').order('created_at', { ascending: false })
+    setBankCategories(cats || [])
+    setBankQuestions(qs || [])
+    setLoadingBank(false)
+  }
+
+  const importQuestion = (bq: any) => {
+    const newQ: Question = {
+      id: `new-${Date.now()}-${Math.random()}`,
+      content: bq.content,
+      type: bq.type,
+      image_url: bq.images?.[0] || null,
+      options: bq.type === 'essay' ? [] : (bq.question_bank_answers || []).map((ba: any, idx: number) => ({
+        id: toLetter(idx),
+        text: ba.content || '',
+        isCorrect: !!ba.is_correct,
+        image_url: ba.images?.[0] || null
+      }))
+    }
+    setQuestions(prev => [...prev, newQ])
+  }
+
   useEffect(() => {
     if (!testId) return
 
@@ -484,6 +517,16 @@ export default function ManageTestQuestionsPage() {
       {/* ===== FIXED SAVE BAR ===== */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-8 py-4 flex justify-end gap-4">
         <button
+          onClick={openBank}
+          disabled={loading || saving}
+          className="px-6 py-3 rounded-xl bg-slate-800 text-white font-bold text-lg disabled:opacity-50 active:scale-95 transition-transform flex items-center gap-2"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
+          </svg>
+          Lấy từ ngân hàng
+        </button>
+        <button
           onClick={() =>
             setQuestions(prev => [
               ...prev,
@@ -512,6 +555,92 @@ export default function ManageTestQuestionsPage() {
           {saving ? 'Đang lưu...' : 'Lưu câu hỏi'}
         </button>
       </div>
+
+      {/* ✅ BANK MODAL */}
+      {showBankModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <h2 className="text-xl font-bold text-slate-800">Ngân hàng câu hỏi</h2>
+              <button
+                onClick={() => setShowBankModal(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 hover:bg-slate-200 rounded-full"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-hidden flex">
+              {/* Sidebar Cats */}
+              <div className="w-64 border-r border-slate-100 p-4 space-y-1 overflow-y-auto">
+                <button
+                  onClick={() => setSelectedBankCat('all')}
+                  className={`w-full text-left px-4 py-2 rounded-xl text-sm font-medium transition-all ${selectedBankCat === 'all' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
+                >
+                  Tất cả câu hỏi
+                </button>
+                {bankCategories.map(cat => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedBankCat(cat.id)}
+                    className={`w-full text-left px-4 py-2 rounded-xl text-sm font-medium transition-all ${selectedBankCat === cat.id ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
+                  >
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+
+              {/* Bank Questions */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {loadingBank ? (
+                  <div className="text-center py-12 text-slate-400 font-medium">Đang tải câu hỏi...</div>
+                ) : bankQuestions.filter(bq => selectedBankCat === 'all' || bq.category_id === selectedBankCat).length === 0 ? (
+                  <div className="text-center py-12 text-slate-400 font-medium italic">Không có câu hỏi nào trong nhóm này.</div>
+                ) : (
+                  bankQuestions.filter(bq => selectedBankCat === 'all' || bq.category_id === selectedBankCat).map(bq => {
+                    // Check if already in test
+                    const alreadyIn = questions.some(q => q.content === bq.content)
+                    return (
+                      <div key={bq.id} className="border border-slate-200 rounded-2xl p-4 flex justify-between items-start gap-4 hover:border-blue-200 transition-colors">
+                        <div className="flex-1 space-y-2">
+                          <div className={`text-[10px] font-bold uppercase tracking-wider inline-block px-2 py-0.5 rounded ${bq.type === 'essay' ? 'bg-purple-100 text-purple-600' :
+                            bq.type === 'multiple' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'
+                            }`}>
+                            {bq.type === 'essay' ? 'Tự luận' : bq.type === 'multiple' ? 'Nhiều đáp án' : '1 đáp án'}
+                          </div>
+                          <div className="text-slate-800 font-medium line-clamp-2">{bq.content}</div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            importQuestion(bq)
+                            alert('Đã thêm vào đề thi!')
+                          }}
+                          disabled={alreadyIn}
+                          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${alreadyIn ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white shadow-lg shadow-blue-100 hover:brightness-110 active:scale-95'
+                            }`}
+                        >
+                          {alreadyIn ? 'Đã có' : '+ Thêm'}
+                        </button>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-end">
+              <button
+                onClick={() => setShowBankModal(false)}
+                className="px-6 py-2 rounded-xl bg-slate-800 text-white font-bold"
+              >
+                Xong
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

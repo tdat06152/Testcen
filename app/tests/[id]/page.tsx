@@ -70,6 +70,7 @@ export default function TakeTestPage() {
   const [qLoading, setQLoading] = useState(false)
   const [questions, setQuestions] = useState<Question[]>([])
   const [responses, setResponses] = useState<Record<string, { selected: string[]; essayText: string }>>({})
+  const [difficultQuestions, setDifficultQuestions] = useState<Set<string>>(new Set())
 
   const [submitting, setSubmitting] = useState(false)
   const [submission, setSubmission] = useState<Submission | null>(null)
@@ -345,6 +346,33 @@ export default function TakeTestPage() {
     }))
   }
 
+  const toggleDifficult = (id: string) => {
+    setDifficultQuestions(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const isAnswered = (qId: string) => {
+    const res = responses[qId]
+    const q = questions.find(x => x.id === qId)
+    if (!res || !q) return false
+    if (q.type === 'essay') {
+      return res.essayText.trim().length > 0
+    }
+    return res.selected.length > 0
+  }
+
+  const scrollToQuestion = (idx: number) => {
+    const el = document.getElementById(`question-${idx}`)
+    if (el) {
+      // Offset for sticky header if any, though here we just scroll to center
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }
+
   const arraysEqualAsSet = (a: string[], b: string[]) => {
     if (a.length !== b.length) return false
     const sa = new Set(a)
@@ -360,6 +388,14 @@ export default function TakeTestPage() {
     const name = candidateName.trim() || localStorage.getItem(nameKey(testId, accessCodeId)) || ''
     if (!name.trim()) {
       alert('Vui lòng nhập họ tên trước khi làm bài.')
+      return
+    }
+
+    // ✅ Kiểm tra điền đầy đủ
+    const unansweredIdx = questions.findIndex(q => !isAnswered(q.id))
+    if (unansweredIdx !== -1) {
+      alert(`Vui lòng hoàn thành tất cả các câu hỏi. Câu ${unansweredIdx + 1} chưa được trả lời.`)
+      scrollToQuestion(unansweredIdx)
       return
     }
 
@@ -744,146 +780,230 @@ export default function TakeTestPage() {
 
   // access ok & chưa nộp => vào bài (nhưng phải nhập tên + bấm bắt đầu)
   return (
-    <div className="min-h-screen bg-white text-gray-900">
-      <div className="max-w-4xl mx-auto px-6 py-10 space-y-6">
-        <div className="border rounded-xl p-6">
-          <h1 className="text-3xl font-bold">{title}</h1>
-          {test?.description && <div className="text-gray-600 mt-2">{test.description}</div>}
-          <div className="text-sm text-gray-500 mt-2">* Tự luận không chấm tự động (không tính vào %).</div>
+    <div className="min-h-screen bg-gray-50 text-gray-900">
+      <div className={`max-w-7xl mx-auto px-6 py-10 ${started ? 'grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6' : 'space-y-6'}`}>
+        <div className="space-y-6">
+          <div className="bg-white border rounded-xl p-6 shadow-sm">
+            <h1 className="text-3xl font-bold">{title}</h1>
+            {test?.description && <div className="text-gray-600 mt-2">{test.description}</div>}
+            <div className="text-sm text-gray-500 mt-2">* Tự luận không chấm tự động (không tính vào %).</div>
+          </div>
+
+          {/* ✅ BƯỚC NHẬP TÊN */}
+          {!started && (
+            <div className="border rounded-xl p-6 space-y-4">
+              <div className="text-lg font-semibold">Nhập thông tin thí sinh</div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Họ tên</label>
+                <input
+                  value={candidateName}
+                  onChange={e => setCandidateName(e.target.value)}
+                  placeholder="VD: Nguyễn Văn A"
+                  className="w-full h-11 px-3 border border-gray-300 rounded-lg"
+                />
+              </div>
+
+              <button
+                onClick={() => {
+                  const name = candidateName.trim()
+                  if (!name) return alert('Vui lòng nhập họ tên')
+
+                  // lưu tên để refresh không mất
+                  localStorage.setItem(nameKey(testId!, accessCodeId!), name)
+
+                  // ✅ lưu thời điểm bắt đầu làm tại đây
+                  const startKey = `test_started_at:${testId}:${accessCodeId}`
+                  if (!localStorage.getItem(startKey)) {
+                    localStorage.setItem(startKey, new Date().toISOString())
+                  }
+
+                  enterFullScreen()
+                  setTimeout(() => setStarted(true), 100)
+                }}
+                className="w-full px-5 py-3 rounded-lg bg-[#00a0fa] text-white font-semibold"
+              >
+                Bắt đầu làm bài
+              </button>
+
+              <button onClick={resetForNewCode} className="w-full px-5 py-3 rounded-lg bg-gray-200 text-gray-900 font-semibold">
+                Đổi mã khác
+              </button>
+            </div>
+          )}
+
+          {/* ✅ CHỈ HIỆN CÂU HỎI KHI ĐÃ STARTED */}
+          {started && (
+            <>
+              {qLoading ? (
+                <div>Đang tải câu hỏi...</div>
+              ) : questions.length === 0 ? (
+                <div className="border rounded-xl p-6 text-gray-600">Test này chưa có câu hỏi.</div>
+              ) : (
+                <div className="space-y-4 pb-20">
+                  {questions.map((q, idx) => (
+                    <div key={q.id} id={`question-${idx}`} className="bg-white border rounded-xl p-6 space-y-4 shadow-sm scroll-mt-24">
+                      <div className="flex justify-between items-start">
+                        <div className="font-bold text-lg text-blue-600">Câu {idx + 1}</div>
+                        <button
+                          onClick={() => toggleDifficult(q.id)}
+                          className={`text-sm px-3 py-1.5 rounded-full border transition-all flex items-center gap-1.5 font-medium ${difficultQuestions.has(q.id)
+                            ? 'bg-yellow-100 border-yellow-400 text-yellow-700'
+                            : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300'
+                            }`}
+                        >
+                          {difficultQuestions.has(q.id) ? '⭐ Khó' : '☆ Đánh dấu khó'}
+                        </button>
+                      </div>
+                      <div className="whitespace-pre-wrap text-lg leading-relaxed">{q.content}</div>
+                      {q.images.length > 0 && (
+                        <div className="mt-4 flex flex-col gap-4">
+                          {q.images.map((img, i) => (
+                            <img key={i} src={img} alt="Illustration" className="max-h-96 rounded-lg border object-contain bg-gray-50" />
+                          ))}
+                        </div>
+                      )}
+
+                      {q.type === 'essay' ? (
+                        <textarea
+                          value={responses[q.id]?.essayText ?? ''}
+                          onChange={e => setEssay(q.id, e.target.value)}
+                          placeholder="Nhập câu trả lời..."
+                          className="w-full min-h-[120px] px-3 py-2 border border-gray-300 rounded-lg"
+                        />
+                      ) : (
+                        <div className="space-y-2">
+                          {q.answers.map(a => {
+                            const selected = (responses[q.id]?.selected ?? []).includes(a.id)
+                            return (
+                              <label key={a.id} className="flex items-start gap-2 cursor-pointer border rounded-lg px-3 py-2">
+                                <input
+                                  type={q.type === 'single' ? 'radio' : 'checkbox'}
+                                  checked={selected}
+                                  onChange={() => {
+                                    if (q.type === 'single') toggleSingle(q.id, a.id)
+                                    else toggleMultiple(q.id, a.id)
+                                  }}
+                                />
+
+                                <div className="flex-1">
+                                  <span className="whitespace-pre-wrap">{a.content}</span>
+                                  {a.images.length > 0 && (
+                                    <div className="mt-2 flex flex-col gap-2">
+                                      {a.images.map((img, i) => (
+                                        <img key={i} src={img} alt="Answer Illustration" className="max-h-48 rounded border object-contain bg-gray-50" />
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="sticky bottom-0 bg-white border-t p-4 flex items-center justify-between gap-3 shadow-top z-50">
+                <div className="flex flex-col">
+                  <div className="text-red-600 font-bold animate-pulse">
+                    {violationCount > 0 ? `⚠️ Vi phạm: ${violationCount} lần` : ''}
+                  </div>
+                  {timeLeft !== null && (
+                    <div className={`text-xl font-black ${timeLeft < 60 ? 'text-red-600 animate-bounce' : 'text-gray-900'}`}>
+                      ⏱️ {formatTime(timeLeft)}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-3">
+                  <button onClick={resetForNewCode} className="px-5 py-3 rounded-xl bg-gray-200 text-gray-900 font-semibold text-sm">
+                    Đổi mã khác
+                  </button>
+
+                  <button
+                    onClick={submit}
+                    disabled={submitting || qLoading || questions.length === 0}
+                    className="px-8 py-3 rounded-xl bg-[#00a0fa] text-white font-bold text-lg disabled:opacity-50"
+                  >
+                    {submitting ? 'Đang nộp...' : 'Nộp bài'}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
-        {/* ✅ BƯỚC NHẬP TÊN */}
-        {!started && (
-          <div className="border rounded-xl p-6 space-y-4">
-            <div className="text-lg font-semibold">Nhập thông tin thí sinh</div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Họ tên</label>
-              <input
-                value={candidateName}
-                onChange={e => setCandidateName(e.target.value)}
-                placeholder="VD: Nguyễn Văn A"
-                className="w-full h-11 px-3 border border-gray-300 rounded-lg"
-              />
-            </div>
+        {/* ✅ SIDEBAR TỔNG HỢP CÂU HỎI */}
+        {started && !loading && questions.length > 0 && (
+          <div className="hidden lg:block">
+            <div className="sticky top-6 space-y-4">
+              <div className="bg-white border rounded-xl p-6 shadow-sm">
+                <h2 className="font-bold text-lg mb-4 flex items-center justify-between">
+                  <span>Danh sách câu hỏi</span>
+                  <span className="text-sm font-normal text-gray-500">
+                    {questions.filter(q => isAnswered(q.id)).length}/{questions.length}
+                  </span>
+                </h2>
 
-            <button
-              onClick={() => {
-                const name = candidateName.trim()
-                if (!name) return alert('Vui lòng nhập họ tên')
-
-                // lưu tên để refresh không mất
-                localStorage.setItem(nameKey(testId!, accessCodeId!), name)
-
-                // ✅ lưu thời điểm bắt đầu làm tại đây
-                const startKey = `test_started_at:${testId}:${accessCodeId}`
-                if (!localStorage.getItem(startKey)) {
-                  localStorage.setItem(startKey, new Date().toISOString())
-                }
-
-                enterFullScreen()
-                setTimeout(() => setStarted(true), 100)
-              }}
-              className="w-full px-5 py-3 rounded-lg bg-[#00a0fa] text-white font-semibold"
-            >
-              Bắt đầu làm bài
-            </button>
-
-            <button onClick={resetForNewCode} className="w-full px-5 py-3 rounded-lg bg-gray-200 text-gray-900 font-semibold">
-              Đổi mã khác
-            </button>
-          </div>
-        )}
-
-        {/* ✅ CHỈ HIỆN CÂU HỎI KHI ĐÃ STARTED */}
-        {started && (
-          <>
-            {qLoading ? (
-              <div>Đang tải câu hỏi...</div>
-            ) : questions.length === 0 ? (
-              <div className="border rounded-xl p-6 text-gray-600">Test này chưa có câu hỏi.</div>
-            ) : (
-              <div className="space-y-4">
-                {questions.map((q, idx) => (
-                  <div key={q.id} className="border rounded-xl p-6 space-y-4">
-                    <div className="font-semibold">Câu {idx + 1}</div>
-                    <div className="whitespace-pre-wrap">{q.content}</div>
-                    {q.images.length > 0 && (
-                      <div className="mt-4 flex flex-col gap-4">
-                        {q.images.map((img, i) => (
-                          <img key={i} src={img} alt="Illustration" className="max-h-96 rounded-lg border object-contain bg-gray-50" />
-                        ))}
-                      </div>
-                    )}
-
-                    {q.type === 'essay' ? (
-                      <textarea
-                        value={responses[q.id]?.essayText ?? ''}
-                        onChange={e => setEssay(q.id, e.target.value)}
-                        placeholder="Nhập câu trả lời..."
-                        className="w-full min-h-[120px] px-3 py-2 border border-gray-300 rounded-lg"
-                      />
-                    ) : (
-                      <div className="space-y-2">
-                        {q.answers.map(a => {
-                          const selected = (responses[q.id]?.selected ?? []).includes(a.id)
-                          return (
-                            <label key={a.id} className="flex items-start gap-2 cursor-pointer border rounded-lg px-3 py-2">
-                              <input
-                                type={q.type === 'single' ? 'radio' : 'checkbox'}
-                                checked={selected}
-                                onChange={() => {
-                                  if (q.type === 'single') toggleSingle(q.id, a.id)
-                                  else toggleMultiple(q.id, a.id)
-                                }}
-                              />
-
-                              <div className="flex-1">
-                                <span className="whitespace-pre-wrap">{a.content}</span>
-                                {a.images.length > 0 && (
-                                  <div className="mt-2 flex flex-col gap-2">
-                                    {a.images.map((img, i) => (
-                                      <img key={i} src={img} alt="Answer Illustration" className="max-h-48 rounded border object-contain bg-gray-50" />
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            </label>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="sticky bottom-0 bg-white border-t p-4 flex items-center justify-between gap-3 shadow-top z-50">
-              <div className="flex flex-col">
-                <div className="text-red-600 font-bold animate-pulse">
-                  {violationCount > 0 ? `⚠️ Vi phạm: ${violationCount} lần` : ''}
+                <div className="grid grid-cols-5 gap-2">
+                  {questions.map((q, idx) => {
+                    const answered = isAnswered(q.id)
+                    const difficult = difficultQuestions.has(q.id)
+                    return (
+                      <button
+                        key={q.id}
+                        onClick={() => scrollToQuestion(idx)}
+                        className={`
+                          w-full aspect-square rounded-lg flex items-center justify-center text-sm font-bold border transition-all
+                          ${answered
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                            : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
+                          }
+                          ${difficult ? 'ring-2 ring-yellow-400 ring-offset-2' : ''}
+                        `}
+                      >
+                        {idx + 1}
+                      </button>
+                    )
+                  })}
                 </div>
-                {timeLeft !== null && (
-                  <div className={`text-xl font-black ${timeLeft < 60 ? 'text-red-600 animate-bounce' : 'text-gray-900'}`}>
-                    ⏱️ {formatTime(timeLeft)}
+
+                <div className="mt-6 pt-6 border-t border-gray-100 space-y-3 text-xs text-gray-500">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded bg-blue-600" />
+                    <span>Đã trả lời</span>
                   </div>
-                )}
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded border border-gray-200" />
+                    <span>Chưa trả lời</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded border-2 border-yellow-400" />
+                    <span>Câu hỏi khó</span>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex gap-3">
-                <button onClick={resetForNewCode} className="px-5 py-3 rounded-xl bg-gray-200 text-gray-900 font-semibold text-sm">
-                  Đổi mã khác
-                </button>
+              {timeLeft !== null && (
+                <div className={`bg-white border rounded-xl p-6 shadow-sm text-center ${timeLeft < 60 ? 'border-red-500 bg-red-50' : ''}`}>
+                  <div className="text-sm text-gray-500 mb-1">Thời gian còn lại</div>
+                  <div className={`text-3xl font-black ${timeLeft < 60 ? 'text-red-600 animate-pulse' : 'text-slate-900'}`}>
+                    {formatTime(timeLeft)}
+                  </div>
+                </div>
+              )}
 
-                <button
-                  onClick={submit}
-                  disabled={submitting || qLoading || questions.length === 0}
-                  className="px-8 py-3 rounded-xl bg-[#00a0fa] text-white font-bold text-lg disabled:opacity-50"
-                >
-                  {submitting ? 'Đang nộp...' : 'Nộp bài'}
-                </button>
-              </div>
+              <button
+                onClick={submit}
+                disabled={submitting || qLoading || questions.length === 0}
+                className="w-full py-4 rounded-xl bg-primary text-white font-bold text-lg shadow-lg shadow-orange-200 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50"
+              >
+                {submitting ? 'ĐANG NỘP...' : 'NỘP BÀI'}
+              </button>
             </div>
-          </>
+          </div>
         )}
       </div>
 

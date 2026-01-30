@@ -121,6 +121,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 >
                   Báo cáo
                 </Link>
+
+                <Link
+                  href="/question-bank"
+                  className="block px-3 py-2 rounded-md text-white/90 font-medium hover:text-white hover:bg-white/10 transition"
+                >
+                  Ngân hàng câu hỏi
+                </Link>
               </>
             )}
 
