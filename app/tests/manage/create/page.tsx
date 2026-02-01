@@ -575,15 +575,6 @@ export default function CreateTestPage() {
                     }}
                     className="w-full h-32 px-5 py-4 bg-white border-2 border-slate-100 rounded-[24px] font-bold focus:border-[#00a0fa] outline-none transition-all resize-none text-lg"
                   />
-                  <div className="flex justify-end mt-1">
-                    <button
-                      onClick={() => aiRefineQuestion(qi)}
-                      disabled={isAiLoading}
-                      className="text-[10px] font-black text-purple-600 hover:bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-200 transition-all flex items-center gap-1 disabled:opacity-50"
-                    >
-                      {isAiLoading ? '⌛' : '🪄'} TỐI ƯU CÂU HỎI (AI)
-                    </button>
-                  </div>
 
                   {q.image_url && (
                     <div className="space-y-2">
@@ -697,13 +688,6 @@ export default function CreateTestPage() {
                           className="text-[#00a0fa] text-sm font-bold hover:underline"
                         >
                           + Thêm đáp án
-                        </button>
-                        <button
-                          onClick={() => aiGenerateDistractors(qi)}
-                          disabled={isAiLoading}
-                          className="text-purple-600 text-[10px] font-black hover:underline flex items-center gap-1 disabled:opacity-50"
-                        >
-                          {isAiLoading ? '⌛' : '🪄'} AI GỢI Ý ĐÁP ÁN NHIỄU
                         </button>
                       </div>
                     </div>

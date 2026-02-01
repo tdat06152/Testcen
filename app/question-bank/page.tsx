@@ -482,15 +482,6 @@ export default function QuestionBankPage() {
                                     className="w-full min-h-[140px] p-6 bg-slate-50 border-2 border-slate-100 rounded-[30px] font-bold focus:border-orange-500 outline-none transition-all text-lg"
                                     placeholder="Nhập nội dung..."
                                 />
-                                <div className="flex justify-end pt-1">
-                                    <button
-                                        onClick={aiRefineQuestion}
-                                        disabled={isAiLoading || !editingQuestion.content}
-                                        className="text-[10px] font-black text-purple-600 hover:bg-purple-100 px-4 py-2 rounded-2xl border-2 border-purple-100 transition-all flex items-center gap-2 disabled:opacity-50 active:scale-95"
-                                    >
-                                        {isAiLoading ? '⌛' : '🪄'} TỐI ƯU CÂU HỎI (GEMINI AI)
-                                    </button>
-                                </div>
                                 {editingQuestion.images && editingQuestion.images.length > 0 && (
                                     <div className="flex gap-2 mt-2">
                                         {editingQuestion.images.map((img, i) => (
@@ -509,13 +500,6 @@ export default function QuestionBankPage() {
                                         <label className="text-xs font-black uppercase text-slate-400 tracking-widest">Các đáp án</label>
                                         <div className="flex gap-4">
                                             <button onClick={() => setEditingQuestion({ ...editingQuestion, answers: [...(editingQuestion.answers || []), { content: '', is_correct: false, images: [] }] })} className="text-orange-500 text-xs font-black hover:underline">+ THÊM ĐÁP ÁN</button>
-                                            <button
-                                                onClick={aiGenerateDistractors}
-                                                disabled={isAiLoading || !editingQuestion.content}
-                                                className="text-purple-600 text-[10px] font-black hover:underline flex items-center gap-1 disabled:opacity-50"
-                                            >
-                                                {isAiLoading ? '⌛' : '🪄'} AI GỢI Ý ĐÁP ÁN NHIỄU
-                                            </button>
                                         </div>
                                     </div>
                                     <div className="space-y-3">
