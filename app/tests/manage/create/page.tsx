@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ClipboardEvent } from 'react'
+import { useState, useEffect, type ClipboardEvent } from 'react'
 import { createClient } from '@/utils/supabase/client'
 
 // --- Helpers ---
@@ -56,16 +56,181 @@ type Question = {
   type: QuestionType
   options: AnswerOption[]
   image_url?: string | null
+  bank_question_id?: string | null
 }
 
 type Section = 'info' | 'questions'
 
 export default function CreateTestPage() {
   // Use custom UUID generator to ensure it works on all browsers/contexts
-  const [testId] = useState(() => uuidv4())
+  const [testId, setTestId] = useState('')
+
+  useEffect(() => {
+    setTestId(uuidv4())
+  }, [])
   const [activeSection, setActiveSection] = useState<Section>('info')
   const [saving, setSaving] = useState(false)
+
+  /* ===== QUESTION BANK IMPORT ===== */
+  const [isBankModalOpen, setIsBankModalOpen] = useState(false)
+  const [bankQuestions, setBankQuestions] = useState<any[]>([])
+  const [bankCategories, setBankCategories] = useState<any[]>([])
+  const [selectedBankCat, setSelectedBankCat] = useState<string | 'all'>('all')
+  const [bankSearch, setBankSearch] = useState('')
+  const [loadingBank, setLoadingBank] = useState(false)
+
+  /* ===== SMART BUILD ===== */
+  const [isSmartModalOpen, setIsSmartModalOpen] = useState(false)
+  const [smartConfig, setSmartConfig] = useState({
+    easy: 0,
+    medium: 0,
+    hard: 0,
+    categoryId: 'all'
+  })
+
+  const [isAiLoading, setIsAiLoading] = useState(false)
+
   const supabase = createClient()
+
+  useEffect(() => {
+    const fetchCats = async () => {
+      const { data } = await supabase.from('question_bank_categories').select('*').order('name')
+      setBankCategories(data || [])
+    }
+    fetchCats()
+  }, [])
+
+  const openBankModal = async () => {
+    setIsBankModalOpen(true)
+    setLoadingBank(true)
+    const { data: qs } = await supabase.from('question_bank').select('*').order('created_at', { ascending: false })
+    const { data: ans } = await supabase.from('question_bank_answers').select('*')
+
+    const mappedQs = (qs || []).map((q: any) => ({
+      ...q,
+      answers: (ans || []).filter((a: any) => a.question_id === q.id)
+    }))
+    setBankQuestions(mappedQs)
+    setLoadingBank(false)
+  }
+
+  const importSelectedQuestions = (selectedQs: any[]) => {
+    const newQs: Question[] = selectedQs.map((q, i) => ({
+      id: `bank-${Date.now()}-${i}`,
+      content: q.content,
+      type: q.type as QuestionType,
+      image_url: q.images?.[0] || null,
+      bank_question_id: q.id,
+      options: q.answers.map((a: any, ai: number) => ({
+        id: String.fromCharCode(65 + ai),
+        text: a.content,
+        isCorrect: a.is_correct,
+        image_url: a.images?.[0] || null,
+      }))
+    }))
+    setQuestions(prev => [...prev, ...newQs])
+    setIsBankModalOpen(false)
+  }
+
+  const handleSmartBuild = async () => {
+    setIsSmartModalOpen(false)
+    setSaving(true)
+
+    const { data: qs } = await supabase.from('question_bank').select('*')
+    const { data: ans } = await supabase.from('question_bank_answers').select('*')
+
+    const mappedQs = (qs || []).map((q: any) => ({
+      ...q,
+      answers: (ans || []).filter((a: any) => a.question_id === q.id)
+    }))
+
+    const filtered = mappedQs.filter((q: any) => smartConfig.categoryId === 'all' || q.category_id === smartConfig.categoryId)
+
+    const pick = (diff: string, count: number) => {
+      const pool = filtered.filter((q: any) => (q.difficulty || 'Easy') === diff).sort(() => Math.random() - 0.5)
+      return pool.slice(0, count)
+    }
+
+    const selected = [
+      ...pick('Easy', smartConfig.easy),
+      ...pick('Medium', smartConfig.medium),
+      ...pick('Hard', smartConfig.hard)
+    ]
+
+    const newQs: Question[] = selected.map((q: any, i: number) => ({
+      id: `smart-${Date.now()}-${i}`,
+      content: q.content,
+      type: q.type as QuestionType,
+      image_url: q.images?.[0] || null,
+      bank_question_id: q.id,
+      options: q.answers.map((a: any, ai: number) => ({
+        id: String.fromCharCode(65 + ai),
+        text: a.content,
+        isCorrect: a.is_correct,
+        image_url: a.images?.[0] || null,
+      }))
+    }))
+
+    setQuestions(prev => [...prev, ...newQs])
+    setSaving(false)
+    alert(`✅ Đã bốc ngẫu nhiên ${newQs.length} câu hỏi!`)
+  }
+
+  const aiRefineQuestion = async (qi: number) => {
+    const q = questions[qi]
+    if (!q.content) return
+    setIsAiLoading(true)
+    try {
+      const res = await fetch('/api/ai/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'refine-question', currentContent: q.content })
+      })
+      const data = await res.json()
+      if (data.success) {
+        const copy = [...questions]
+        copy[qi].content = data.refinedText
+        setQuestions(copy)
+      } else alert("AI Error: " + data.error)
+    } catch (e) { alert("Network Error") }
+    finally { setIsAiLoading(false) }
+  }
+
+  const aiGenerateDistractors = async (qi: number) => {
+    const q = questions[qi]
+    if (!q.content) return alert("Hãy nhập nội dung câu hỏi trước")
+    const correctAns = q.options.find(o => o.isCorrect)?.text
+    if (!correctAns) return alert("Hãy nhập và chọn 1 đáp án đúng trước để AI có cơ sở gợi ý")
+
+    setIsAiLoading(qi === -1 ? false : true) // qi === -1 is just a trick to avoid TS warning if needed, but not needed here
+    setIsAiLoading(true)
+    try {
+      const res = await fetch('/api/ai/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'generate-distractors', question: q.content, correctAnswer: correctAns })
+      })
+      const data = await res.json()
+      if (data.success && data.distractors) {
+        const copy = [...questions]
+        const currentCorrect = copy[qi].options.filter(o => o.isCorrect)
+        const newOptions = [
+          ...currentCorrect,
+          ...data.distractors.map((text: string, i: number) => ({
+            id: String.fromCharCode(65 + currentCorrect.length + i),
+            text,
+            isCorrect: false,
+            image_url: null
+          }))
+        ]
+        // Re-index all IDs to be safe
+        newOptions.forEach((o, idx) => o.id = String.fromCharCode(65 + idx))
+        copy[qi].options = newOptions
+        setQuestions(copy)
+      } else alert("AI Error: " + data.error)
+    } catch (e) { alert("Network Error") }
+    finally { setIsAiLoading(false) }
+  }
 
   /* ===== SECTION 1 ===== */
   const [form, setForm] = useState({
@@ -151,7 +316,8 @@ export default function CreateTestPage() {
           type: q.type,
           correct_answer: correctAnswer,
           options: q.type === 'essay' ? [] : q.options.map(o => o.id),
-          image_url: q.image_url ?? null, // ✅ Save image
+          image_url: q.image_url ?? null,
+          bank_question_id: q.bank_question_id || null, // ✅ Save link to bank
         })
         .select()
         .single()
@@ -407,8 +573,17 @@ export default function CreateTestPage() {
                         alert(err?.message ?? 'Upload ảnh thất bại')
                       }
                     }}
-                    className="w-full min-h-[120px] px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
+                    className="w-full h-32 px-5 py-4 bg-white border-2 border-slate-100 rounded-[24px] font-bold focus:border-[#00a0fa] outline-none transition-all resize-none text-lg"
                   />
+                  <div className="flex justify-end mt-1">
+                    <button
+                      onClick={() => aiRefineQuestion(qi)}
+                      disabled={isAiLoading}
+                      className="text-[10px] font-black text-purple-600 hover:bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-200 transition-all flex items-center gap-1 disabled:opacity-50"
+                    >
+                      {isAiLoading ? '⌛' : '🪄'} TỐI ƯU CÂU HỎI (AI)
+                    </button>
+                  </div>
 
                   {q.image_url && (
                     <div className="space-y-2">
@@ -507,22 +682,30 @@ export default function CreateTestPage() {
                         </div>
                       ))}
 
-                      <button
-                        onClick={() => {
-                          const copy = [...questions]
-                          const nextChar = String.fromCharCode(65 + copy[qi].options.length)
-                          copy[qi].options.push({
-                            id: nextChar,
-                            text: '',
-                            isCorrect: false,
-                            image_url: null,
-                          })
-                          setQuestions(copy)
-                        }}
-                        className="text-sm font-medium text-[#ff5200]"
-                      >
-                        + Thêm đáp án
-                      </button>
+                      <div className="flex gap-4">
+                        <button
+                          onClick={() => {
+                            const copy = [...questions]
+                            copy[qi].options.push({
+                              id: String.fromCharCode(65 + q.options.length),
+                              text: '',
+                              isCorrect: false,
+                              image_url: null,
+                            })
+                            setQuestions(copy)
+                          }}
+                          className="text-[#00a0fa] text-sm font-bold hover:underline"
+                        >
+                          + Thêm đáp án
+                        </button>
+                        <button
+                          onClick={() => aiGenerateDistractors(qi)}
+                          disabled={isAiLoading}
+                          className="text-purple-600 text-[10px] font-black hover:underline flex items-center gap-1 disabled:opacity-50"
+                        >
+                          {isAiLoading ? '⌛' : '🪄'} AI GỢI Ý ĐÁP ÁN NHIỄU
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -533,28 +716,42 @@ export default function CreateTestPage() {
       </div>
 
       {/* ===== FIXED SAVE BAR ===== */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-8 py-4 flex justify-end gap-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-8 py-4 flex justify-end gap-4 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.1)]">
         {activeSection === 'questions' && (
-          <button
-            onClick={() =>
-              setQuestions(prev => [
-                ...prev,
-                {
-                  id: Date.now().toString(),
-                  content: '',
-                  type: 'single',
-                  image_url: null,
-                  options: [
-                    { id: 'A', text: '', isCorrect: false, image_url: null },
-                    { id: 'B', text: '', isCorrect: false, image_url: null },
-                  ],
-                },
-              ])
-            }
-            className="px-6 py-3 rounded-xl bg-[#00a0fa] text-white font-bold text-lg active:scale-95 transition-transform"
-          >
-            + Thêm câu hỏi
-          </button>
+          <>
+            <button
+              onClick={openBankModal}
+              className="px-6 py-3 rounded-xl bg-purple-600 text-white font-bold text-lg active:scale-95 transition-transform flex items-center gap-2"
+            >
+              <span>📂</span> Ngân hàng
+            </button>
+            <button
+              onClick={() => setIsSmartModalOpen(true)}
+              className="px-6 py-3 rounded-xl bg-green-600 text-white font-bold text-lg active:scale-95 transition-transform flex items-center gap-2"
+            >
+              <span>🧠</span> Smart Build
+            </button>
+            <button
+              onClick={() =>
+                setQuestions(prev => [
+                  ...prev,
+                  {
+                    id: Date.now().toString(),
+                    content: '',
+                    type: 'single',
+                    image_url: null,
+                    options: [
+                      { id: 'A', text: '', isCorrect: false, image_url: null },
+                      { id: 'B', text: '', isCorrect: false, image_url: null },
+                    ],
+                  },
+                ])
+              }
+              className="px-6 py-3 rounded-xl bg-[#00a0fa] text-white font-bold text-lg active:scale-95 transition-transform"
+            >
+              + Thêm câu hỏi
+            </button>
+          </>
         )}
         <button
           onClick={saveTest}
@@ -563,6 +760,151 @@ export default function CreateTestPage() {
         >
           {saving ? 'Đang lưu...' : 'Lưu bài kiểm tra'}
         </button>
+        {/* ===== BANK MODAL ===== */}
+        {isBankModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
+            <div className="bg-white rounded-[32px] w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+              <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Ngân hàng câu hỏi</h2>
+                  <p className="text-sm text-slate-500 font-medium">Chọn câu hỏi để thêm vào bài thi</p>
+                </div>
+                <button onClick={() => setIsBankModalOpen(false)} className="text-slate-400 hover:text-slate-900 text-2xl">✕</button>
+              </div>
+
+              <div className="p-6 border-b border-slate-100 bg-white flex gap-4">
+                <div className="flex-1 relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+                  <input
+                    type="text"
+                    placeholder="Tìm kiếm câu hỏi..."
+                    value={bankSearch}
+                    onChange={e => setBankSearch(e.target.value)}
+                    className="w-full h-12 pl-12 pr-4 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold focus:border-purple-500 outline-none transition-all"
+                  />
+                </div>
+                <select
+                  value={selectedBankCat}
+                  onChange={e => setSelectedBankCat(e.target.value)}
+                  className="h-12 px-4 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold focus:border-purple-500 outline-none"
+                >
+                  <option value="all">Tất cả nhóm</option>
+                  {bankCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
+                {loadingBank ? (
+                  <div className="text-center py-20 font-bold text-slate-400 animate-pulse">ĐANG TẢI DỮ LIỆU...</div>
+                ) : (
+                  bankQuestions
+                    .filter(q => selectedBankCat === 'all' || q.category_id === selectedBankCat)
+                    .filter(q => q.content.toLowerCase().includes(bankSearch.toLowerCase()))
+                    .map(q => (
+                      <div
+                        key={q.id}
+                        onClick={() => {
+                          importSelectedQuestions([q]);
+                        }}
+                        className="bg-white border-2 border-slate-100 hover:border-purple-500 rounded-2xl p-5 cursor-pointer transition-all hover:shadow-md group"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-2">
+                            <div className="flex gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                              <span>{q.type === 'essay' ? 'Tự luận' : 'Trắc nghiệm'}</span>
+                              <span>•</span>
+                              <span>{bankCategories.find(c => c.id === q.category_id)?.name || 'Mặc định'}</span>
+                            </div>
+                            <div className="font-bold text-slate-800 line-clamp-2">{q.content}</div>
+                            <div className="text-xs text-slate-500">{q.answers.length} đáp án</div>
+                          </div>
+                          <div className="opacity-0 group-hover:opacity-100 bg-purple-100 text-purple-600 px-3 py-1 rounded-lg text-xs font-black transition-opacity">
+                            CHỌN CÂU NÀY
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                )}
+                {bankQuestions.length === 0 && !loadingBank && (
+                  <div className="text-center py-20 text-slate-400 font-medium">Không tìm thấy câu hỏi nào trong ngân hàng.</div>
+                )}
+              </div>
+
+              <div className="p-6 border-t border-slate-100 bg-white flex justify-end">
+                <button onClick={() => setIsBankModalOpen(false)} className="px-8 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-all">ĐÓNG</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===== SMART BUILD MODAL ===== */}
+        {isSmartModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
+            <div className="bg-white rounded-[40px] w-full max-w-lg shadow-2xl p-8 space-y-8 border border-white/20">
+              <div>
+                <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">🧠 Smart Build</h2>
+                <p className="text-sm text-slate-500 font-medium">Hệ thống sẽ bốc ngẫu nhiên câu hỏi theo yêu cầu của bạn.</p>
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase text-slate-400 tracking-widest ml-1">Nhóm câu hỏi</label>
+                  <select
+                    value={smartConfig.categoryId}
+                    onChange={e => setSmartConfig({ ...smartConfig, categoryId: e.target.value })}
+                    className="w-full h-14 px-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold focus:border-green-500 outline-none transition-all"
+                  >
+                    <option value="all">Tất cả nhóm</option>
+                    {bankCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-green-600 tracking-widest ml-1">Dễ</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={smartConfig.easy}
+                      onChange={e => setSmartConfig({ ...smartConfig, easy: Number(e.target.value) })}
+                      className="w-full h-14 px-4 bg-green-50 border-2 border-green-100 rounded-2xl font-black text-center focus:border-green-500 outline-none"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-orange-600 tracking-widest ml-1">T.Bình</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={smartConfig.medium}
+                      onChange={e => setSmartConfig({ ...smartConfig, medium: Number(e.target.value) })}
+                      className="w-full h-14 px-4 bg-orange-50 border-2 border-orange-100 rounded-2xl font-black text-center focus:border-orange-500 outline-none"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-red-600 tracking-widest ml-1">Khó</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={smartConfig.hard}
+                      onChange={e => setSmartConfig({ ...smartConfig, hard: Number(e.target.value) })}
+                      className="w-full h-14 px-4 bg-red-50 border-2 border-red-100 rounded-2xl font-black text-center focus:border-red-500 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button onClick={() => setIsSmartModalOpen(false)} className="px-6 py-3 rounded-2xl font-bold text-slate-500 hover:bg-slate-50 transition-all">HỦY</button>
+                <button
+                  onClick={handleSmartBuild}
+                  className="px-8 py-3 rounded-2xl bg-black text-white font-black hover:bg-slate-800 transition-all shadow-xl active:scale-95 uppercase tracking-tight"
+                >
+                  Bốc câu hỏi ngay
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

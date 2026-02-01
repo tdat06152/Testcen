@@ -3,6 +3,7 @@
 import { useEffect, useState, type ClipboardEvent } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
+import * as XLSX from 'xlsx'
 
 type QuestionType = 'single' | 'multiple' | 'essay'
 
@@ -17,6 +18,7 @@ type BankQuestion = {
     id: string
     content: string
     type: QuestionType
+    difficulty: 'Easy' | 'Medium' | 'Hard'
     category_id: string | null
     images: string[]
     answers: BankAnswer[]
@@ -56,6 +58,52 @@ export default function QuestionBankPage() {
     const [newCatName, setNewCatName] = useState('')
     const [newCatDesc, setNewCatDesc] = useState('')
     const [editingQuestion, setEditingQuestion] = useState<Partial<BankQuestion> | null>(null)
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false)
+    const [importing, setImporting] = useState(false)
+    const [isAiLoading, setIsAiLoading] = useState(false)
+
+    const aiRefineQuestion = async () => {
+        if (!editingQuestion?.content) return
+        setIsAiLoading(true)
+        try {
+            const res = await fetch('/api/ai/gemini', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'refine-question', currentContent: editingQuestion.content })
+            })
+            const data = await res.json()
+            if (data.success) {
+                setEditingQuestion({ ...editingQuestion, content: data.refinedText })
+            } else {
+                alert("AI Error: " + data.error)
+            }
+        } catch (e) { alert("Network Error") }
+        finally { setIsAiLoading(false) }
+    }
+
+    const aiGenerateDistractors = async () => {
+        if (!editingQuestion?.content) return alert("Hảy nhập nội dung câu hỏi trước")
+        const correctAns = editingQuestion.answers?.find(a => a.is_correct)?.content
+        if (!correctAns) return alert("Hãy nhập và chọn 1 đáp án đúng trước để AI có cơ sở gợi ý")
+
+        setIsAiLoading(true)
+        try {
+            const res = await fetch('/api/ai/gemini', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'generate-distractors', question: editingQuestion.content, correctAnswer: correctAns })
+            })
+            const data = await res.json()
+            if (data.success && data.distractors) {
+                const newAnswers = [
+                    ...(editingQuestion.answers?.filter(a => a.is_correct) || []),
+                    ...data.distractors.map((text: string) => ({ content: text, is_correct: false, images: [] }))
+                ]
+                setEditingQuestion({ ...editingQuestion, answers: newAnswers })
+            } else { alert("AI Error: " + data.error) }
+        } catch (e) { alert("Network Error") }
+        finally { setIsAiLoading(false) }
+    }
 
     useEffect(() => {
         loadData()
@@ -64,18 +112,14 @@ export default function QuestionBankPage() {
 
     const checkStorage = async () => {
         const { data, error } = await supabase.storage.listBuckets()
-        console.log('--- STORAGE DEBUG ---')
         if (error) {
             console.error('List Buckets Error:', error)
         } else {
-            console.log('Available Buckets:', data?.map((b: any) => b.name))
             const bankExists = data?.some((b: any) => b.name === BUCKET)
             if (!bankExists) {
-                console.warn(`WARNING: Bucket "${BUCKET}" not found in list:`, data?.map((b: any) => b.name))
+                console.warn(`WARNING: Bucket "${BUCKET}" not found`)
             }
         }
-        console.log('Current Project URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
-        console.log('---------------------')
     }
 
     const loadData = async () => {
@@ -86,6 +130,7 @@ export default function QuestionBankPage() {
 
         const mappedQs: BankQuestion[] = (qs || []).map((q: any) => ({
             ...q,
+            difficulty: q.difficulty || 'Easy',
             answers: (ans || []).filter((a: any) => a.question_id === q.id)
         }))
 
@@ -101,6 +146,14 @@ export default function QuestionBankPage() {
         else { setNewCatName(''); setNewCatDesc(''); setShowAddCategory(false); loadData() }
     }
 
+    const deleteCategory = async (id: string, e: React.MouseEvent) => {
+        e.stopPropagation()
+        if (!confirm('Xóa nhóm này? Các câu hỏi trong nhóm sẽ được chuyển về "Mặc định".')) return
+        const { error } = await supabase.from('question_bank_categories').delete().eq('id', id)
+        if (error) alert(error.message)
+        else loadData()
+    }
+
     const deleteQuestion = async (id: string) => {
         if (!confirm('Xóa câu hỏi này?')) return
         await supabase.from('question_bank').delete().eq('id', id)
@@ -112,6 +165,7 @@ export default function QuestionBankPage() {
         const payload = {
             content: editingQuestion.content,
             type: editingQuestion.type || 'single',
+            difficulty: editingQuestion.difficulty || 'Easy',
             category_id: editingQuestion.category_id || null,
             images: editingQuestion.images || []
         }
@@ -136,6 +190,122 @@ export default function QuestionBankPage() {
         setEditingQuestion(null); loadData()
     }
 
+    const downloadTemplate = () => {
+        const data = [
+            ['Câu hỏi', 'Loại câu hỏi', 'Nhóm chủ đề', 'Độ khó (Dễ/Trung bình/Khó)', 'Câu trả lời', 'Đáp án đúng'],
+            ['1+1 bằng mấy ?', '1 đáp án', 'Kinh doanh', 'Dễ', '2', 'x'],
+            ['', '', '', '', '3', ''],
+            ['', '', '', '', '4', ''],
+            ['', '', '', '', '5', ''],
+            ['Con mèo kêu sao?', 'Nhiều đáp án', 'Mặc định', 'Trung bình', 'Meo', 'x'],
+            ['', '', '', '', 'Gâu', ''],
+            ['', '', '', '', 'Chó đẻ', 'x'],
+            ['', '', '', '', 'Ò ó o', '']
+        ]
+        const ws = XLSX.utils.aoa_to_sheet(data)
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, "Sheet1")
+        XLSX.writeFile(wb, "Mau_Cau_Hoi.xlsx")
+    }
+
+    const handleImportExcel = async (file: File) => {
+        setImporting(true)
+        try {
+            const reader = new FileReader()
+            reader.onload = async (e) => {
+                const data = new Uint8Array(e.target?.result as ArrayBuffer)
+                const workbook = XLSX.read(data, { type: 'array' })
+                const sheet = workbook.Sheets[workbook.SheetNames[0]]
+                const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 })
+
+                // Skip header
+                const dataRows = rows.slice(1)
+                const parsedQuestions: any[] = []
+                let currentQ: any = null
+
+                for (const row of dataRows) {
+                    const [qText, qTypeStr, qCatName, qDiffStr, aText, aCorrect] = row
+
+                    if (qText && qText.toString().trim()) {
+                        // New Question
+                        let type: QuestionType = 'single'
+                        if (qTypeStr?.toString().includes('Nhiều')) type = 'multiple'
+                        if (qTypeStr?.toString().includes('luận')) type = 'essay'
+
+                        let difficulty: 'Easy' | 'Medium' | 'Hard' = 'Easy'
+                        if (qDiffStr?.toString().includes('binh')) difficulty = 'Medium'
+                        if (qDiffStr?.toString().includes('Khó')) difficulty = 'Hard'
+
+                        currentQ = {
+                            content: qText.toString(),
+                            type: type,
+                            difficulty: difficulty,
+                            category_name: qCatName?.toString() || 'Mặc định',
+                            answers: []
+                        }
+                        parsedQuestions.push(currentQ)
+                    }
+
+                    if (currentQ && aText) {
+                        currentQ.answers.push({
+                            content: aText.toString(),
+                            is_correct: aCorrect?.toString().toLowerCase() === 'x'
+                        })
+                    }
+                }
+
+                // Batch save to database
+                for (const q of parsedQuestions) {
+                    // 1. Find or create category
+                    let catId = null
+                    if (q.category_name && q.category_name !== 'Mặc định') {
+                        const { data: existingCat } = await supabase.from('question_bank_categories').select('id').eq('name', q.category_name).limit(1).maybeSingle()
+                        if (existingCat) {
+                            catId = existingCat.id
+                        } else {
+                            const { data: newCat, error: catErr } = await supabase.from('question_bank_categories').insert({ name: q.category_name }).select().single()
+                            if (!catErr) catId = newCat?.id
+                        }
+                    }
+
+                    // 2. Insert question
+                    const { data: newQ, error: qErr } = await supabase.from('question_bank').insert({
+                        content: q.content,
+                        type: q.type,
+                        difficulty: q.difficulty,
+                        category_id: catId,
+                        images: []
+                    }).select().single()
+
+                    if (qErr) {
+                        console.error('Error importing question:', qErr)
+                        continue
+                    }
+
+                    // 3. Insert answers
+                    if (q.answers.length > 0) {
+                        const ansPayload = q.answers.map((a: any) => ({
+                            question_id: newQ.id,
+                            content: a.content,
+                            is_correct: a.is_correct,
+                            images: []
+                        }))
+                        await supabase.from('question_bank_answers').insert(ansPayload)
+                    }
+                }
+
+                alert(`✅ Đã nhập thành công ${parsedQuestions.length} câu hỏi!`)
+                setIsImportModalOpen(false)
+                loadData()
+                setImporting(false)
+            }
+            reader.readAsArrayBuffer(file)
+        } catch (err: any) {
+            alert('Lỗi: ' + err.message)
+            setImporting(false)
+        }
+    }
+
     return (
         <div className="p-6 space-y-8 max-w-7xl mx-auto">
             <div className="flex justify-between items-center">
@@ -143,12 +313,20 @@ export default function QuestionBankPage() {
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight">NGÂN HÀNG CÂU HỎI</h1>
                     <p className="text-slate-500 font-medium">Quản lý kho câu hỏi tập trung</p>
                 </div>
-                <button
-                    onClick={() => setEditingQuestion({ content: '', type: 'single', answers: [{ content: '', is_correct: false, images: [] }, { content: '', is_correct: false, images: [] }], images: [] })}
-                    className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-orange-500/20 transition-all active:scale-95"
-                >
-                    + THÊM CÂU HỎI MỚI
-                </button>
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => setIsImportModalOpen(true)}
+                        className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-green-500/20 transition-all active:scale-95 flex items-center gap-2"
+                    >
+                        <span className="text-xl">📊</span> IMPORT EXCEL
+                    </button>
+                    <button
+                        onClick={() => setEditingQuestion({ content: '', type: 'single', difficulty: 'Easy', answers: [{ content: '', is_correct: false, images: [] }, { content: '', is_correct: false, images: [] }], images: [] })}
+                        className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-orange-500/20 transition-all active:scale-95"
+                    >
+                        + THÊM CÂU HỎI MỚI
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-8">
@@ -166,13 +344,20 @@ export default function QuestionBankPage() {
                                 Tất cả ({questions.length})
                             </button>
                             {categories.map(cat => (
-                                <button
+                                <div
                                     key={cat.id}
+                                    className={`group flex items-center justify-between px-4 py-3 rounded-xl transition-all font-bold text-sm cursor-pointer ${selectedCategory === cat.id ? 'bg-orange-500 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}
                                     onClick={() => setSelectedCategory(cat.id)}
-                                    className={`w-full text-left px-4 py-3 rounded-xl transition-all font-bold text-sm ${selectedCategory === cat.id ? 'bg-orange-500 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}
                                 >
-                                    {cat.name} ({questions.filter(q => q.category_id === cat.id).length})
-                                </button>
+                                    <span className="truncate flex-1">{cat.name} ({questions.filter(q => q.category_id === cat.id).length})</span>
+                                    <button
+                                        onClick={(e) => deleteCategory(cat.id, e)}
+                                        className={`ml-2 opacity-0 group-hover:opacity-100 p-1 hover:bg-black/10 rounded transition-all ${selectedCategory === cat.id ? 'text-white' : 'text-slate-400 hover:text-red-500'}`}
+                                        title="Xóa nhóm"
+                                    >
+                                        🗑️
+                                    </button>
+                                </div>
                             ))}
                         </div>
                     </div>
@@ -189,7 +374,13 @@ export default function QuestionBankPage() {
                                         <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-[10px] font-black uppercase tracking-widest">
                                             {q.type === 'essay' ? 'Tự luận' : q.type === 'multiple' ? 'Nhiều đáp án' : '1 đáp án'}
                                         </span>
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${q.difficulty === 'Hard' ? 'bg-red-100 text-red-600' :
+                                            q.difficulty === 'Medium' ? 'bg-orange-100 text-orange-600' :
+                                                'bg-green-100 text-green-600'
+                                            }`}>
+                                            {q.difficulty === 'Hard' ? 'Khó' : q.difficulty === 'Medium' ? 'Trung bình' : 'Dễ'}
+                                        </span>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-auto">
                                             NHÓM: {categories.find(c => c.id === q.category_id)?.name || 'Mặc định'}
                                         </span>
                                     </div>
@@ -234,7 +425,7 @@ export default function QuestionBankPage() {
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-8 space-y-8">
-                            <div className="grid grid-cols-2 gap-6">
+                            <div className="grid grid-cols-3 gap-6">
                                 <div className="space-y-2">
                                     <label className="text-xs font-black uppercase text-slate-400 tracking-widest ml-1">Loại câu hỏi</label>
                                     <select
@@ -245,6 +436,18 @@ export default function QuestionBankPage() {
                                         <option value="single">Một đáp án đúng</option>
                                         <option value="multiple">Nhiều đáp án đúng</option>
                                         <option value="essay">Tự luận</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black uppercase text-slate-400 tracking-widest ml-1">Độ khó</label>
+                                    <select
+                                        value={editingQuestion.difficulty}
+                                        onChange={e => setEditingQuestion({ ...editingQuestion, difficulty: e.target.value as any })}
+                                        className="w-full h-14 px-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold focus:border-orange-500 outline-none transition-all"
+                                    >
+                                        <option value="Easy">Dễ</option>
+                                        <option value="Medium">Trung bình</option>
+                                        <option value="Hard">Khó</option>
                                     </select>
                                 </div>
                                 <div className="space-y-2">
@@ -279,6 +482,15 @@ export default function QuestionBankPage() {
                                     className="w-full min-h-[140px] p-6 bg-slate-50 border-2 border-slate-100 rounded-[30px] font-bold focus:border-orange-500 outline-none transition-all text-lg"
                                     placeholder="Nhập nội dung..."
                                 />
+                                <div className="flex justify-end pt-1">
+                                    <button
+                                        onClick={aiRefineQuestion}
+                                        disabled={isAiLoading || !editingQuestion.content}
+                                        className="text-[10px] font-black text-purple-600 hover:bg-purple-100 px-4 py-2 rounded-2xl border-2 border-purple-100 transition-all flex items-center gap-2 disabled:opacity-50 active:scale-95"
+                                    >
+                                        {isAiLoading ? '⌛' : '🪄'} TỐI ƯU CÂU HỎI (GEMINI AI)
+                                    </button>
+                                </div>
                                 {editingQuestion.images && editingQuestion.images.length > 0 && (
                                     <div className="flex gap-2 mt-2">
                                         {editingQuestion.images.map((img, i) => (
@@ -295,7 +507,16 @@ export default function QuestionBankPage() {
                                 <div className="space-y-4">
                                     <div className="flex justify-between items-center px-1">
                                         <label className="text-xs font-black uppercase text-slate-400 tracking-widest">Các đáp án</label>
-                                        <button onClick={() => setEditingQuestion({ ...editingQuestion, answers: [...(editingQuestion.answers || []), { content: '', is_correct: false, images: [] }] })} className="text-orange-500 text-xs font-black hover:underline">+ THÊM ĐÁP ÁN</button>
+                                        <div className="flex gap-4">
+                                            <button onClick={() => setEditingQuestion({ ...editingQuestion, answers: [...(editingQuestion.answers || []), { content: '', is_correct: false, images: [] }] })} className="text-orange-500 text-xs font-black hover:underline">+ THÊM ĐÁP ÁN</button>
+                                            <button
+                                                onClick={aiGenerateDistractors}
+                                                disabled={isAiLoading || !editingQuestion.content}
+                                                className="text-purple-600 text-[10px] font-black hover:underline flex items-center gap-1 disabled:opacity-50"
+                                            >
+                                                {isAiLoading ? '⌛' : '🪄'} AI GỢI Ý ĐÁP ÁN NHIỄU
+                                            </button>
+                                        </div>
                                     </div>
                                     <div className="space-y-3">
                                         {editingQuestion.answers?.map((ans, i) => (
@@ -381,6 +602,47 @@ export default function QuestionBankPage() {
                         <div className="flex justify-end gap-3 pt-4">
                             <button onClick={() => setShowAddCategory(false)} className="px-6 py-3 rounded-2xl font-bold text-slate-500 hover:bg-slate-50">HỦY</button>
                             <button onClick={addCategory} className="px-8 py-3 rounded-2xl bg-slate-900 text-white font-black hover:bg-black transition-all shadow-lg active:scale-95">THÊM NHÓM</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isImportModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
+                    <div className="bg-white rounded-[40px] w-full max-w-md shadow-2xl p-8 space-y-6 border border-white/20">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Nhập từ Excel</h2>
+                            <button onClick={downloadTemplate} className="text-xs font-black text-orange-500 hover:underline">⬇️ TẢI FILE MẪU</button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="border-2 border-dashed border-slate-200 rounded-3xl p-10 text-center hover:border-green-500 transition-all relative">
+                                {!importing ? (
+                                    <>
+                                        <span className="text-4xl mb-4 block">📁</span>
+                                        <p className="font-bold text-slate-500">Kéo thả hoặc bấm để chọn file Excel (.xlsx)</p>
+                                        <input
+                                            type="file"
+                                            accept=".xlsx"
+                                            onChange={e => e.target.files?.[0] && handleImportExcel(e.target.files[0])}
+                                            className="absolute inset-0 opacity-0 cursor-pointer"
+                                        />
+                                    </>
+                                ) : (
+                                    <div className="space-y-2">
+                                        <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                                        <p className="font-black text-green-600 animate-pulse">ĐANG XỬ LÝ DỮ LIỆU...</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <p className="text-[10px] text-slate-400 font-bold uppercase text-center tracking-widest leading-relaxed">
+                                Lưu ý: File Excel phải đúng định dạng mẫu. <br /> Các dòng cùng 1 câu hỏi phải nằm sát nhau.
+                            </p>
+                        </div>
+
+                        <div className="flex justify-end pt-2">
+                            <button onClick={() => setIsImportModalOpen(false)} className="px-6 py-3 rounded-2xl font-bold text-slate-500 hover:bg-slate-50">ĐÓNG</button>
                         </div>
                     </div>
                 </div>
