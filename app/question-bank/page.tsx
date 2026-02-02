@@ -110,6 +110,27 @@ export default function QuestionBankPage() {
         checkStorage()
     }, [])
 
+    useEffect(() => {
+        const handleHash = () => {
+            if (typeof window === 'undefined') return
+            const qId = window.location.hash.slice(1)
+            if (!qId || loading || questions.length === 0) return
+
+            setSelectedCategory('all')
+            setTimeout(() => {
+                const el = document.getElementById(qId)
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                    el.classList.add('ring-4', 'ring-orange-500', 'ring-offset-4', 'transition-all', 'duration-1000')
+                    setTimeout(() => el.classList.remove('ring-4', 'ring-orange-500', 'ring-offset-4'), 3000)
+                }
+            }, 600)
+        }
+        handleHash()
+        window.addEventListener('hashchange', handleHash)
+        return () => window.removeEventListener('hashchange', handleHash)
+    }, [loading, questions.length])
+
     const checkStorage = async () => {
         const { data, error } = await supabase.storage.listBuckets()
         if (error) {
@@ -374,7 +395,7 @@ export default function QuestionBankPage() {
                     {loading ? (
                         <div className="text-center py-20 font-bold text-slate-400 animate-pulse text-xl">ĐANG TẢI DỮ LIỆU...</div>
                     ) : (selectedCategory === 'all' ? questions : questions.filter(q => q.category_id === selectedCategory)).map(q => (
-                        <div key={q.id} className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all group border-l-8 border-l-orange-500">
+                        <div key={q.id} id={q.id} className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all group border-l-8 border-l-orange-500">
                             <div className="flex justify-between items-start gap-4">
                                 <div className="flex-1 space-y-4">
                                     <div className="flex items-center gap-2">

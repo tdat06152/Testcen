@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -48,6 +49,7 @@ function formatDuration(seconds: number | null) {
 
 export default function ReportsPage() {
   const supabase = createClient()
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -338,7 +340,15 @@ export default function ReportsPage() {
 
           <div className="space-y-4">
             {wrongStats.map((stat: WrongQuestionStat, i: number) => (
-              <div key={stat.question_id} className="bg-white/5 border border-white/10 rounded-3xl p-6 hover:bg-white/10 transition-all flex items-center gap-6 group">
+              <div
+                key={stat.question_id}
+                onClick={() => {
+                  if (stat.bank_id) {
+                    router.push(`/question-bank#${stat.bank_id}`)
+                  }
+                }}
+                className={`bg-white/5 border border-white/10 rounded-3xl p-6 hover:bg-white/10 transition-all flex items-center gap-6 group ${stat.bank_id ? 'cursor-pointer' : ''}`}
+              >
                 <div className="w-12 h-12 rounded-2xl bg-orange-500 flex items-center justify-center font-black text-xl shadow-lg shadow-orange-500/20">
                   {i + 1}
                 </div>
@@ -370,8 +380,8 @@ export default function ReportsPage() {
                     ) : stat.current_difficulty === stat.suggested_difficulty ? (
                       <div className="flex flex-col items-center gap-1">
                         <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${stat.current_difficulty === 'Hard' ? 'bg-red-500 text-white' :
-                            stat.current_difficulty === 'Medium' ? 'bg-orange-500 text-white' :
-                              'bg-green-500 text-white'
+                          stat.current_difficulty === 'Medium' ? 'bg-orange-500 text-white' :
+                            'bg-green-500 text-white'
                           }`}>
                           {stat.current_difficulty === 'Hard' ? 'Khó' : stat.current_difficulty === 'Medium' ? 'T.Bình' : 'Dễ'}
                         </span>
@@ -385,8 +395,8 @@ export default function ReportsPage() {
                           </span>
                           <span className="text-slate-400">➔</span>
                           <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase animate-pulse ${stat.suggested_difficulty === 'Hard' ? 'bg-red-500 text-white' :
-                              stat.suggested_difficulty === 'Medium' ? 'bg-orange-500 text-white' :
-                                'bg-green-500 text-white'
+                            stat.suggested_difficulty === 'Medium' ? 'bg-orange-500 text-white' :
+                              'bg-green-500 text-white'
                             }`}>
                             {stat.suggested_difficulty === 'Hard' ? 'Khó' : stat.suggested_difficulty === 'Medium' ? 'T.Bình' : 'Dễ'}
                           </span>
