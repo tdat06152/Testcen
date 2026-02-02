@@ -115,11 +115,21 @@ export default function TakeTestPage() {
     // NEW reset name/start
     setCandidateName('')
     setStarted(false)
+    localStorage.removeItem(`test_violations:${testId}:${accessCodeId}`)
     setViolationCount(0)
     setViolationReason(null)
     setAutoLocked(false)
     setSecondsToLock(null)
   }
+
+  // Load violations from localStorage
+  useEffect(() => {
+    if (!testId || !accessCodeId) return
+    const saved = localStorage.getItem(`test_violations:${testId}:${accessCodeId}`)
+    if (saved) {
+      setViolationCount(parseInt(saved, 10))
+    }
+  }, [testId, accessCodeId])
 
   // Load test + get stored access code id
   useEffect(() => {
@@ -410,7 +420,8 @@ export default function TakeTestPage() {
     return true
   }
 
-  const submit = async () => {
+  const submit = async (options?: { force?: boolean }) => {
+    const force = options?.force ?? false
     if (submitting) return
     if (!testId || !accessCodeId) return
 
@@ -422,11 +433,13 @@ export default function TakeTestPage() {
     }
 
     // ✅ Kiểm tra điền đầy đủ
-    const unansweredIdx = questions.findIndex(q => !isAnswered(q.id))
-    if (unansweredIdx !== -1) {
-      showMsg(`Câu ${unansweredIdx + 1} chưa được trả lời.`, 'error')
-      scrollToQuestion(unansweredIdx)
-      return
+    if (!force) {
+      const unansweredIdx = questions.findIndex(q => !isAnswered(q.id))
+      if (unansweredIdx !== -1) {
+        showMsg(`Câu ${unansweredIdx + 1} chưa được trả lời.`, 'error')
+        scrollToQuestion(unansweredIdx)
+        return
+      }
     }
 
     setSubmitting(true)
@@ -527,6 +540,11 @@ export default function TakeTestPage() {
       const newCount = violationCount + 1
       setViolationCount(newCount)
       setViolationReason(reason) // Show custom modal
+
+      // Lưu vào localStorage
+      if (testId && accessCodeId) {
+        localStorage.setItem(`test_violations:${testId}:${accessCodeId}`, newCount.toString())
+      }
 
       // ✅ Check if exceeded max violations
       const maxViolations = Number(test?.max_violations ?? 0)
@@ -651,7 +669,7 @@ export default function TakeTestPage() {
         // Auto submit if time is up
         if (!submitting && !submission) {
           console.log('Time is up! Auto-submitting...')
-          submit()
+          submit({ force: true })
         }
       } else {
         setTimeLeft(remaining)
@@ -953,7 +971,7 @@ export default function TakeTestPage() {
                   </button>
 
                   <button
-                    onClick={submit}
+                    onClick={() => submit()}
                     disabled={submitting || qLoading || questions.length === 0}
                     className="px-8 py-3 rounded-xl bg-[#00a0fa] text-white font-bold text-lg disabled:opacity-50"
                   >
@@ -1026,7 +1044,7 @@ export default function TakeTestPage() {
               )}
 
               <button
-                onClick={submit}
+                onClick={() => submit()}
                 disabled={submitting || qLoading || questions.length === 0}
                 className="w-full py-4 rounded-xl bg-primary text-white font-bold text-lg shadow-lg shadow-orange-200 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50"
               >
@@ -1049,10 +1067,10 @@ export default function TakeTestPage() {
       )}
 
       {/* 🔴 WARNING MODAL (Thay cho alert để không bị exit fullscreen) */}
-      {violationReason && (() => {
+      {(violationReason || (test?.max_violations > 0 && violationCount >= Number(test.max_violations)) || autoLocked) && (() => {
         const maxViolations = Number(test?.max_violations ?? 0)
         const isLocked = (maxViolations > 0 && violationCount >= maxViolations) || autoLocked
-        const lockReason = autoLocked ? 'Rời khỏi màn hình quá 30 giây' : violationReason
+        const lockReason = autoLocked ? 'Rời khỏi màn hình quá 30 giây' : (violationReason || 'Vượt quá số lần vi phạm cho phép')
 
         return (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/95 text-white p-6 animate-in fade-in duration-200">
@@ -1090,7 +1108,7 @@ export default function TakeTestPage() {
                     onClick={() => {
                       setViolationReason(null)
                       // Force submit with current answers
-                      submit()
+                      submit({ force: true })
                     }}
                     className="w-full py-4 bg-white text-black font-bold text-xl rounded-lg hover:bg-gray-200 transition-colors"
                   >
