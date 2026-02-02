@@ -245,6 +245,8 @@ export default function CreateTestPage() {
     failMessage: '',
     allowReview: true,
     maxViolations: 0,
+    shuffleQuestions: false,
+    shuffleAnswers: false,
   })
 
   /* ===== SECTION 2 ===== */
@@ -286,6 +288,8 @@ export default function CreateTestPage() {
       fail_message: form.failMessage?.trim() || null,
       allow_review: !!form.allowReview,
       max_violations: Number(form.maxViolations),
+      shuffle_questions: !!form.shuffleQuestions,
+      shuffle_answers: !!form.shuffleAnswers,
     }
 
     const { data: test, error: testError } = await supabase
@@ -468,6 +472,29 @@ export default function CreateTestPage() {
                 />
                 Cho phép xem lại bài làm
               </label>
+
+              <div className="flex flex-col gap-3">
+                <label className="flex items-center gap-2 text-sm font-semibold">
+                  <input
+                    type="checkbox"
+                    checked={form.shuffleQuestions}
+                    onChange={e =>
+                      setForm({ ...form, shuffleQuestions: e.target.checked })
+                    }
+                  />
+                  Đảo thứ tự câu hỏi
+                </label>
+                <label className="flex items-center gap-2 text-sm font-semibold">
+                  <input
+                    type="checkbox"
+                    checked={form.shuffleAnswers}
+                    onChange={e =>
+                      setForm({ ...form, shuffleAnswers: e.target.checked })
+                    }
+                  />
+                  Đảo thứ tự câu trả lời
+                </label>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-8">

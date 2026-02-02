@@ -12,6 +12,8 @@ export default function CreateTestPage() {
   const [duration, setDuration] = useState(15)
   const [passScore, setPassScore] = useState(3)
   const [isActive, setIsActive] = useState(true)
+  const [shuffleQuestions, setShuffleQuestions] = useState(false)
+  const [shuffleAnswers, setShuffleAnswers] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -23,7 +25,9 @@ export default function CreateTestPage() {
       description,
       duration_minutes: duration,
       pass_score: passScore,
-      is_active: isActive
+      is_active: isActive,
+      shuffle_questions: shuffleQuestions,
+      shuffle_answers: shuffleAnswers
     })
     setLoading(false)
     if (error) alert(error.message)
@@ -58,11 +62,19 @@ export default function CreateTestPage() {
           <input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)} />
           <span>Active</span>
         </div>
+        <div className="flex items-center space-x-2">
+          <input type="checkbox" checked={shuffleQuestions} onChange={e => setShuffleQuestions(e.target.checked)} title="Đảo câu hỏi" />
+          <span>Đảo câu hỏi</span>
+        </div>
+        <div className="flex items-center space-x-2">
+          <input type="checkbox" checked={shuffleAnswers} onChange={e => setShuffleAnswers(e.target.checked)} title="Đảo câu trả lời" />
+          <span>Đảo câu trả lời</span>
+        </div>
         <button type="submit" disabled={loading}
           className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
           {loading ? 'Đang tạo...' : 'Tạo Test'}
         </button>
-      </form>
-    </div>
+      </form >
+    </div >
   )
 }

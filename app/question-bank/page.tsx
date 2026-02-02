@@ -161,9 +161,16 @@ export default function QuestionBankPage() {
     }
 
     const saveQuestion = async () => {
-        if (!editingQuestion?.content?.trim()) return alert('Nhập nội dung câu hỏi')
+        if (!editingQuestion) return
+
+        // Allow saving if there is either content OR at least one image
+        const hasContent = editingQuestion.content?.trim()
+        const hasImages = editingQuestion.images && editingQuestion.images.length > 0
+
+        if (!hasContent && !hasImages) return alert('Vui lòng nhập nội dung hoặc thêm ảnh cho câu hỏi')
+
         const payload = {
-            content: editingQuestion.content,
+            content: editingQuestion.content || '',
             type: editingQuestion.type || 'single',
             difficulty: editingQuestion.difficulty || 'Easy',
             category_id: editingQuestion.category_id || null,
@@ -181,7 +188,7 @@ export default function QuestionBankPage() {
         if (editingQuestion.type !== 'essay' && editingQuestion.answers) {
             const ansPayload = editingQuestion.answers.map(a => ({
                 question_id: qId,
-                content: a.content,
+                content: a.content || '',
                 is_correct: a.is_correct,
                 images: a.images || []
             }))

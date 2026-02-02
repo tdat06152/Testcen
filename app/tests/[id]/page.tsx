@@ -43,6 +43,15 @@ type Submission = {
 const storageKey = (testId: string) => `test_access_code_id:${testId}`
 const nameKey = (testId: string, accessCodeId: string) => `candidate_name:${testId}:${accessCodeId}`
 
+function shuffleArray<T>(array: T[]): T[] {
+  const newArr = [...array]
+  for (let i = newArr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [newArr[i], newArr[j]] = [newArr[j], newArr[i]]
+  }
+  return newArr
+}
+
 export default function TakeTestPage() {
   const supabase = createClient()
   const params = useParams<{ id: string }>()
@@ -264,13 +273,23 @@ export default function TakeTestPage() {
         }
       }
 
-      const mapped: Question[] = (qs ?? []).map((q: any) => ({
-        id: q.id,
-        content: q.content ?? '',
-        type: q.type as QuestionType,
-        images: parseImages(q.image_url),
-        answers: q.type === 'essay' ? [] : ansByQ[q.id] ?? [],
-      }))
+      let mapped: Question[] = (qs ?? []).map((q: any) => {
+        let answers = q.type === 'essay' ? [] : ansByQ[q.id] ?? []
+        if (test?.shuffle_answers) {
+          answers = shuffleArray(answers)
+        }
+        return {
+          id: q.id,
+          content: q.content ?? '',
+          type: q.type as QuestionType,
+          images: parseImages(q.image_url),
+          answers,
+        }
+      })
+
+      if (test?.shuffle_questions) {
+        mapped = shuffleArray(mapped)
+      }
 
       setQuestions(mapped)
 
@@ -282,7 +301,7 @@ export default function TakeTestPage() {
     }
 
     loadQuestions()
-  }, [testId, test?.status, accessCodeId, submission])
+  }, [testId, test?.status, test?.shuffle_questions, test?.shuffle_answers, accessCodeId, submission])
 
   const verifyAndConsume = async () => {
     if (!testId) return

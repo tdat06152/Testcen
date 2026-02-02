@@ -148,6 +148,8 @@ export default function ManageTestPage() {
     failMessage: '',
     allowReview: true,
     maxViolations: 0,
+    shuffleQuestions: false,
+    shuffleAnswers: false,
   })
 
   const [questions, setQuestions] = useState<Question[]>([])
@@ -195,6 +197,8 @@ export default function ManageTestPage() {
         failMessage: t.fail_message ?? '',
         allowReview: !!t.allow_review,
         maxViolations: Number(t.max_violations ?? 0),
+        shuffleQuestions: !!t.shuffle_questions,
+        shuffleAnswers: !!t.shuffle_answers,
       })
 
       // 2. Load Questions
@@ -386,6 +390,8 @@ export default function ManageTestPage() {
         fail_message: form.failMessage?.trim() || null,
         allow_review: !!form.allowReview,
         max_violations: Number(form.maxViolations),
+        shuffle_questions: !!form.shuffleQuestions,
+        shuffle_answers: !!form.shuffleAnswers,
       }
 
       const { error: infoErr } = await supabase
@@ -708,6 +714,31 @@ export default function ManageTestPage() {
                 />
                 Cho phép xem lại bài làm
               </label>
+
+              <div className="flex flex-col gap-3">
+                <label className="flex items-center gap-2 text-sm font-semibold">
+                  <input
+                    type="checkbox"
+                    checked={form.shuffleQuestions}
+                    onChange={e =>
+                      setForm({ ...form, shuffleQuestions: e.target.checked })
+                    }
+                    disabled={isPublished}
+                  />
+                  Đảo thứ tự câu hỏi
+                </label>
+                <label className="flex items-center gap-2 text-sm font-semibold">
+                  <input
+                    type="checkbox"
+                    checked={form.shuffleAnswers}
+                    onChange={e =>
+                      setForm({ ...form, shuffleAnswers: e.target.checked })
+                    }
+                    disabled={isPublished}
+                  />
+                  Đảo thứ tự câu trả lời
+                </label>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-8">
