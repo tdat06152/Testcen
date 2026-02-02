@@ -505,9 +505,6 @@ export default function QuestionBankPage() {
                                 <div className="space-y-4">
                                     <div className="flex justify-between items-center px-1">
                                         <label className="text-xs font-black uppercase text-slate-400 tracking-widest">Các đáp án</label>
-                                        <div className="flex gap-4">
-                                            <button onClick={() => setEditingQuestion({ ...editingQuestion, answers: [...(editingQuestion.answers || []), { content: '', is_correct: false, images: [] }] })} className="text-orange-500 text-xs font-black hover:underline">+ THÊM ĐÁP ÁN</button>
-                                        </div>
                                     </div>
                                     <div className="space-y-3">
                                         {editingQuestion.answers?.map((ans, i) => (
@@ -564,6 +561,12 @@ export default function QuestionBankPage() {
                                             </div>
                                         ))}
                                     </div>
+                                    <button
+                                        onClick={() => setEditingQuestion({ ...editingQuestion, answers: [...(editingQuestion?.answers || []), { content: '', is_correct: false, images: [] }] })}
+                                        className="w-full py-4 border-2 border-dashed border-slate-200 rounded-[24px] text-orange-500 font-black text-sm hover:bg-orange-50 hover:border-orange-200 transition-all uppercase tracking-widest"
+                                    >
+                                        + THÊM ĐÁP ÁN
+                                    </button>
                                 </div>
                             )}
                         </div>
