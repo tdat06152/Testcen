@@ -257,7 +257,16 @@ export default function ManageTests() {
                     <button
                       onClick={async () => {
                         if (!confirm('Xoá bài test?')) return
-                        await supabase.from('tests').delete().eq('id', test.id)
+
+                        const { error } = await supabase.from('tests').delete().eq('id', test.id)
+
+                        // Nếu xoá lỗi (do dính khoá ngoại, ...) -> báo lỗi
+                        if (error) {
+                          alert('Không xoá được (Lỗi DB): ' + error.message)
+                          return
+                        }
+
+                        // Nếu thành công -> cập nhật UI
                         setTests(prev => prev.filter(t => t.id !== test.id))
                       }}
                       className="px-3 py-1.5 rounded-md bg-red-500 text-white hover:bg-red-600"
