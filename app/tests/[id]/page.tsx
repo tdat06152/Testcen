@@ -536,7 +536,7 @@ export default function TakeTestPage() {
   useEffect(() => {
     if (!started || submission) return
 
-    const handleViolation = (reason: string) => {
+    const handleViolation = async (reason: string) => {
       const newCount = violationCount + 1
       setViolationCount(newCount)
       setViolationReason(reason) // Show custom modal
@@ -544,6 +544,26 @@ export default function TakeTestPage() {
       // Lưu vào localStorage
       if (testId && accessCodeId) {
         localStorage.setItem(`test_violations:${testId}:${accessCodeId}`, newCount.toString())
+      }
+
+      // ✅ GHI LOG VI PHẠM VÀO DATABASE với timestamp
+      try {
+        const { error: logError } = await supabase
+          .from('test_violation_logs')
+          .insert({
+            test_id: testId,
+            access_code_id: accessCodeId,
+            violation_reason: reason,
+            violated_at: new Date().toISOString(),
+            // submission_id sẽ null vì chưa nộp bài
+            submission_id: null
+          })
+
+        if (logError) {
+          console.warn('Failed to log violation:', logError)
+        }
+      } catch (err) {
+        console.warn('Error logging violation:', err)
       }
 
       // ✅ Check if exceeded max violations

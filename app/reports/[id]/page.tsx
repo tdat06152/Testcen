@@ -44,11 +44,31 @@ type SubmissionAnswer = {
   is_correct: boolean | null
 }
 
+type ViolationLog = {
+  id: string
+  violation_reason: string
+  violated_at: string
+  created_at: string
+}
+
 function formatDuration(seconds: number | null) {
   if (!seconds && seconds !== 0) return '-'
   const m = Math.floor(seconds / 60)
   const s = seconds % 60
   return `${m}m ${s}s`
+}
+
+function formatDateTime(isoString: string | null) {
+  if (!isoString) return '-'
+  const date = new Date(isoString)
+  return date.toLocaleString('vi-VN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
 }
 
 export default function ReportDetailPage() {
@@ -61,6 +81,7 @@ export default function ReportDetailPage() {
   const [submission, setSubmission] = useState<Submission | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
   const [subAnswers, setSubAnswers] = useState<SubmissionAnswer[]>([])
+  const [violationLogs, setViolationLogs] = useState<ViolationLog[]>([])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -136,6 +157,18 @@ export default function ReportDetailPage() {
       }))
 
       setQuestions(merged)
+
+      // ✅ Fetch violation logs
+      const { data: logs, error: logsErr } = await supabase
+        .from('test_violation_logs')
+        .select('id, violation_reason, violated_at, created_at')
+        .eq('access_code_id', sub.access_code_id)
+        .order('violated_at', { ascending: true })
+
+      if (!logsErr && logs) {
+        setViolationLogs(logs)
+      }
+
       setLoading(false)
     }
 
@@ -205,6 +238,32 @@ export default function ReportDetailPage() {
           ← Quay lại
         </button>
       </div>
+
+      {/* ✅ Lịch sử Vi phạm */}
+      {violationLogs.length > 0 && (
+        <div className="mt-6 rounded-2xl border border-red-200 bg-red-50/30 p-5">
+          <h2 className="text-lg font-bold text-red-700 mb-3">
+            ⚠️ Lịch sử Vi phạm ({violationLogs.length})
+          </h2>
+          <div className="space-y-2">
+            {violationLogs.map((log, idx) => (
+              <div
+                key={log.id}
+                className="rounded-lg border border-red-200 bg-white p-3 flex items-start justify-between gap-3"
+              >
+                <div className="flex-1">
+                  <div className="text-sm font-semibold text-red-700">
+                    #{idx + 1}: {log.violation_reason}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Thời gian: {formatDateTime(log.violated_at)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Questions */}
       <div className="mt-6 space-y-5">
