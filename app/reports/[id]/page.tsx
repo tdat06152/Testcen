@@ -61,14 +61,18 @@ function formatDuration(seconds: number | null) {
 function formatDateTime(isoString: string | null) {
   if (!isoString) return '-'
   const date = new Date(isoString)
-  return date.toLocaleString('vi-VN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
+
+  // Manual formatting to avoid hydration mismatch
+  const pad = (n: number) => n.toString().padStart(2, '0')
+
+  const day = pad(date.getDate())
+  const month = pad(date.getMonth() + 1)
+  const year = date.getFullYear()
+  const hours = pad(date.getHours())
+  const minutes = pad(date.getMinutes())
+  const seconds = pad(date.getSeconds())
+
+  return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
 }
 
 export default function ReportDetailPage() {
